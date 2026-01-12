@@ -6,7 +6,7 @@ def cadena0spinhistory(n):
     base = Spin_history[num_pasos-1]
     result = []
     pattern_len = len(base)
-    noise_x = 0 * np.random.randn(n)
+    noise_x = 0.0001 * np.random.randn(n)
     noise_x -= noise_x.mean()  # centrar ruido (evita drift global)
     for i in range(n):
         vec = base[i % pattern_len].copy()  # PBC via índice modular

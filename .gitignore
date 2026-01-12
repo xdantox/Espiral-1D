@@ -1,0 +1,22 @@
+﻿## Data / results (keep repo light)
+*.npy
+*.npz
+*.mat
+*.h5
+*.hdf5
+
+## Python artifacts
+__pycache__/
+*.pyc
+
+## Numba cache
+*.nbc
+*.nbi
+
+## Environments
+.venv/
+venv/
+.env
+
+## Editor
+.vscode/

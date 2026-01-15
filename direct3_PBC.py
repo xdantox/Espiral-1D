@@ -359,4 +359,4 @@ def analyze_sets_modulated(
 if __name__ == "__main__":
     # Prueba con un valor de anisotropía en el plano para activar el bunching
     # D_plane = 0.5 es un valor razonable para empezar a ver efectos fuertes.
-    analyze_sets_modulated(DEFAULT_SETS, Mq=3001, D_plane_val=0)
+    analyze_sets_modulated(DEFAULT_SETS, Mq=3001, D_plane_val=0.76)

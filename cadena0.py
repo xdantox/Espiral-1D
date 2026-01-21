@@ -1,7 +1,7 @@
 import numpy as np
 
 def cadena0spinhistory(n):
-    Spin_history = np.load('MoI3 N=1198  relax PBC.npy',mmap_mode='r')  # Carga del historial de spins
+    Spin_history = np.load('D_plane=1.3 relax.npy',mmap_mode='r')  # Carga del historial de spins
     num_pasos = Spin_history.shape[0]
     base = Spin_history[num_pasos-1]
     result = []

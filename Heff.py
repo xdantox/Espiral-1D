@@ -229,7 +229,7 @@ def H_eff_pbc_numba_in(cadena, J_pair_left, J_pair_right, J_nnn, D_aniso, K_biq)
         # --- ASIGNACIÓN FINAL (Segura para empty_like) ---
         # Anisotropía en X (S_i[0]) e Y (S_i[1])
         H_total[i, 0] = nn0 + nnn0 + D_aniso * S_i[0] + biq0
-        H_total[i, 1] = nn1 + nnn1 + D_aniso * S_i[1] + biq1
+        H_total[i, 1] = nn1 + nnn1 + 2 * S_i[1] + biq1
         H_total[i, 2] = nn2 + nnn2 + biq2
 
     return H_total

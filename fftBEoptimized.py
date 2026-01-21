@@ -44,7 +44,7 @@ SKIP = 1
 # ===================================================================
 print("Cargando datos...")
 # Usamos mmap_mode='r' para no cargar todo el archivo en RAM de golpe si es gigante
-Spin_history = np.load('spin_history.npy', mmap_mode='r')
+Spin_history = np.load('D_plane=1.3 fluc.npy', mmap_mode='r')
 
 num_pasos = Spin_history.shape[0]
 n_spins = Spin_history.shape[1]

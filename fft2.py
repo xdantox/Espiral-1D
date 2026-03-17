@@ -23,20 +23,20 @@ El k que sale está en la BZ reducida del dímero: k ∈ [-π, π].
 # ===================================================================
 
 # Canal del dímero a analizar: "M", "L" o "ML" (suma de potencias de ambos)
-DIMER_CHANNEL = "ML"
+DIMER_CHANNEL = "M"
 
 # Componentes cartesianas incluidas en la potencia (0=x, 1=y, 2=z)
 LAB_COMPONENTS = (0, 1, 2)
 
 # Pre-procesado temporal
-APPLY_DEMEAN = True
+APPLY_DEMEAN = False
 APPLY_HANN = True
 
 # Si True: rFFT en tiempo (ω>=0) para ahorrar memoria
 USE_RFFT_TIME = True
 
 # Parámetros de ploteo
-OMEGA_MAX = 5e14  # rad/s
+OMEGA_MAX = 3e14  # rad/s
 SKIP = 1
 
 # ===================================================================
@@ -44,7 +44,7 @@ SKIP = 1
 # ===================================================================
 print("Cargando datos...")
 # Usamos mmap_mode='r' para no cargar todo el archivo en RAM de golpe si es gigante
-Spin_history = np.load('D_plane = 20D fluc.npy', mmap_mode='r')
+Spin_history = np.load('D_plane = 0.76 fluc.npy', mmap_mode='r')
 
 num_pasos = Spin_history.shape[0]
 n_spins = Spin_history.shape[1]
@@ -70,67 +70,72 @@ def compute_power_lab_dimer_from_spin(
     gs_A_lab,
     gs_B_lab,
     n_dimeros,
-    channel="M",
     components=(0, 1, 2),
     demean=True,
     hann=True,
     use_rfft_time=True,
 ):
-    """S(k,ω) del dímero como objeto (sin fase geométrica intradímero).
-
-    Construye variables de celda (por dímero):
-      M = (A + B)/2  y/o  L = (A - B)/2
-    y hace FFT en tiempo y en el índice de dímero n.
-
-    Esto define un k conjugado al índice de dímero (BZ reducida). Es correcto como
-    observable de 'dímeros' y evita depender de r_AB. No reproduce la intensidad
-    experimental a k absoluto si las posiciones reales no están definidas.
     """
-    channel = channel.upper()
-    if channel not in {"M", "L", "ML"}:
-        raise ValueError("channel must be 'M', 'L', or 'ML'")
-
+    Calcula S(k,w) sobre la BASE DE SITIOS (a=1).
+    
+    JUSTIFICACIÓN:
+    Evita el 'spatial aliasing' producido por la base de dímeros (d=2).
+    Recupera la Zona de Brillouin atómica completa [-pi, pi], permitiendo
+    comparación directa 1:1 con modelos analíticos de Floquet/Bloch.
+    """
+    # 1. Reconstrucción de la Cadena Microscópica (Interleaving)
+    # Tensor [Tiempo, Sitios, Componentes]
     num_pasos = spin_A_lab.shape[0]
+    n_sites = n_dimeros * 2  # Recuperamos N total
+    
+    # Pre-allocating para eficiencia
+    spin_full = np.zeros((num_pasos, n_sites, 3), dtype=np.float32)
+    gs_full = np.zeros((1, n_sites, 3), dtype=np.float32)
+    
+    # Intercalamos A y B: [A0, B0, A1, B1, ...]
+    spin_full[:, 0::2, :] = spin_A_lab
+    spin_full[:, 1::2, :] = spin_B_lab
+    
+    gs_full[:, 0::2, :] = gs_A_lab
+    gs_full[:, 1::2, :] = gs_B_lab
+
+    # Ventana de Hanning temporal
     window_t = None
     if hann:
         window_t = np.hanning(num_pasos).astype(np.float32)[:, np.newaxis]
 
+    # Contenedor de Potencia
     n_omega = (num_pasos // 2 + 1) if use_rfft_time else num_pasos
-    power = np.zeros((n_omega, n_dimeros), dtype=np.float64)
+    power = np.zeros((n_omega, n_sites), dtype=np.float64)
 
-    def _accumulate_for_sign(sign):
-        # sign=+1 for M, sign=-1 for L (since L ~ A - B)
-        nonlocal power
-        for comp in components:
-            a = np.array(spin_A_lab[:, :, comp], dtype=np.float32, copy=True)
-            b = np.array(spin_B_lab[:, :, comp], dtype=np.float32, copy=True)
+    # 2. Procesamiento por Componente (Traza del Tensor de Correlación)
+    for comp in components:
+        # Restamos el Ground State LOCAL de cada sitio
+        # Esto elimina el orden estático y deja solo las fluctuaciones (magnones)
+        fluctuation = spin_full[:, :, comp] - gs_full[:, :, comp]
 
-            a -= gs_A_lab[np.newaxis, :, comp].astype(np.float32, copy=False)
-            b -= gs_B_lab[np.newaxis, :, comp].astype(np.float32, copy=False)
+        if demean:
+            fluctuation -= np.mean(fluctuation, axis=0, keepdims=True)
 
-            x = 0.5 * (a + sign * b)
+        if window_t is not None:
+            fluctuation *= window_t
 
-            if demean:
-                x -= np.mean(x, axis=0, keepdims=True)
+        # 3. FFT Espacio-Temporal
+        # CRÍTICO: FFT sobre axis=1 (n_sites) con distancia d=1
+        if use_rfft_time:
+            fft_time = np.fft.rfft(fluctuation, axis=0)
+            fft_space = np.fft.fft(fft_time, axis=1) # <--- FFT sobre sitios
+            fft_final = np.fft.fftshift(fft_space, axes=(1,))
+        else:
+            fft_final = np.fft.fftshift(np.fft.fftn(fluctuation, axes=(0, 1)), axes=(0, 1))
 
-            if window_t is not None:
-                x *= window_t
-
-            if use_rfft_time:
-                fft_x = np.fft.rfft(x, axis=0)
-                fft_x = np.fft.fft(fft_x, axis=1)
-                fft_x = np.fft.fftshift(fft_x, axes=(1,))
-            else:
-                fft_x = np.fft.fftshift(np.fft.fftn(x, axes=(0, 1)), axes=(0, 1))
-
-            power += (fft_x.real * fft_x.real + fft_x.imag * fft_x.imag)
-            del a, b, x, fft_x
-            gc.collect()
-
-    if channel in {"M", "ML"}:
-        _accumulate_for_sign(+1)
-    if channel in {"L", "ML"}:
-        _accumulate_for_sign(-1)
+        # Suma de potencia (Incoherente entre xyz)
+        power += (fft_final.real**2 + fft_final.imag**2)
+        
+        # Gestión de memoria explícita
+        del fluctuation, fft_final
+        import gc
+        gc.collect()
 
     return power
 print("Calculando FFT (dímero)...")
@@ -141,7 +146,6 @@ total_power = compute_power_lab_dimer_from_spin(
     gs_A,
     gs_B,
     n_dimeros,
-    channel=DIMER_CHANNEL,
     components=LAB_COMPONENTS,
     demean=APPLY_DEMEAN,
     hann=APPLY_HANN,
@@ -158,8 +162,9 @@ log_mag = np.log10(total_power + 1e-12)
 # 4. DEFINICIÓN DE EJES Y PLOT
 # ===================================================================
 
-# Eje K: Zona de Brillouin reducida [-pi, pi] (unidades inversas de celda dimerizada)
-k_values = np.fft.fftshift(np.fft.fftfreq(n_dimeros, d=1.0) * np.pi)
+# Eje K: Zona de Brillouin completa [-pi, pi] (unidades inversas de sitio)
+n_sites = n_dimeros * 2
+k_values = np.fft.fftshift(np.fft.fftfreq(n_sites, d=1.0) * 2 * np.pi)
 
 # Eje Omega: Frecuencia
 if USE_RFFT_TIME:
@@ -194,13 +199,13 @@ mesh = plt.pcolormesh(K_grid, W_grid, Z_grid,
 plt.colorbar(mesh, label=r'$\log_{10} S(k, \omega)$')
 
 # Decoración
-plt.xlabel(r'$k$ (Reduced BZ) $[-\pi, \pi]$')
+plt.xlabel(r'$k$ (Full BZ) $[-\pi, \pi]$')
 plt.ylabel(r'$\omega$ [rad/s]')
 plt.title(fr'Dispersión (Dímero). Canal {DIMER_CHANNEL}')
 
 # Ajustar límites visuales
 plt.ylim(0, omega_max)
-plt.xlim(-np.pi/2, np.pi/2)
+plt.xlim(-np.pi, np.pi)
 
 plt.tight_layout()
 plt.show()

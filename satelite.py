@@ -19,6 +19,7 @@ class ModelParams:
     J2: float     # Jnnn: Segundos vecinos
     K: float      # Ka: Bicuadrático
     D: float      # De: Anisotropía In-Plane
+    D_plane: float # Din: Anisotropía Eje Difícil
     S: float      # Magnitud del Spin
 
     # --- Parámetros de la Textura Magnética ---
@@ -54,17 +55,18 @@ def get_default_params():
     """
     return ModelParams(
         # Constantes de Acoplamiento
-        J       = -46.75,    # Jnn
-        dJ      = -44.85,    # dJnn
-        J2      = -2.6,      # Jnnn
-        K       = -45.4,     # Ka
-        D       = -0.76,     # De
+        J       = 46.75,    # Jnn
+        dJ      = 44.85,    # dJnn
+        J2      = 2.6,      # Jnnn
+        K       = 45.4,     # Ka
+        D       = 0.76,     # De
+        D_plane= 0.0,     # Din (Asumido 0.0 aquí)
         S       = 1.0,      # <--- VERIFICAR SPIN (Asumido 1.0)
         
         # Parámetros Variacionales
-        q       = 1.03321,
-        gamma   = -1.2867,
-        alpha   = -0.0036,  # alpha_ind (Amplitud en el sitio)
+        q       = 2.13838,
+        gamma   = 2.8575,
+        alpha   = -0.00,  # alpha_ind (Amplitud en el sitio)
         phi_0   = 0.0000    # phi_ind
     )
 
@@ -97,6 +99,7 @@ class LambdaFactory:
         # Argumento segundos vecinos (J2): 2 * epsilon * cos(Q/2)
         # Nota: Q = 2q, entonces cos(Q/2) = cos(q)
         self.arg_J2 = 2 * self.p.epsilon * np.cos(self.p.q)
+        self.lambdas = self.precompute_all()
 
     @lru_cache(maxsize=128)
     def _bessel(self, m: int, arg: float) -> float:
@@ -363,7 +366,7 @@ class LambdaFactory:
         # 2. Amplitud Estática (m=0)
         # El coeficiente es +D/2. 
         # (El GammaBuilder aplicará el factor 2 del operador u^2, resultando en un gap D).
-        return {'sym': 0.5 * self.p.D, 'anti': 0.0}
+        return {'sym': 0.5 * self.p.D_plane, 'anti': 0.0}
 
     def get_D_plane(self, m: int):
         """
@@ -382,7 +385,7 @@ class LambdaFactory:
         neumann = self._get_neumann(m)
         sign = self._get_parity_sign(m)
         
-        base = -1.0 * self.p.D * bessel_val * neumann * sign
+        base = -1.0 * self.p.D_plane * bessel_val * neumann * sign
         
         c2g = np.cos(2 * self.p.gamma)
         s2g = np.sin(2 * self.p.gamma)
@@ -1013,3 +1016,190 @@ class HamiltonianAssembler:
                         self._inject_interaction(H_sparse, n, target_dn, block_minus)
 
         return H_sparse
+    
+
+# Capa 5: SOLVER SIMPLÉCTICO (BdG)
+
+import numpy as np
+from scipy.sparse import bsr_matrix, eye as sparse_eye
+
+class MagnonSolver:
+    def __init__(self, assembler):
+        """
+        Capa 5: Solver Simpléctico (Bogoliubov-de Gennes).
+        
+        Resuelve la ecuación de movimiento para las fluctuaciones acopladas u-v:
+        i w Psi = Sigma * H * Psi
+        
+        Donde:
+          H: Matriz Hermítica de energía (del Assembler).
+          Sigma: Métrica simpléctica derivada de los conmutadores [u, v].
+        """
+        self.assembler = assembler
+        self.p = assembler.p  # Acceso a parámetros (para S)
+        
+        # Pre-calculamos la métrica Sigma porque es constante para todo k
+        self.Sigma = self._build_symplectic_metric()
+
+    def _build_symplectic_metric(self):
+        """
+        Construye la matriz Sigma (Métrica) de dimensión (2*dim_blocks)x(2*dim_blocks).
+        
+        Estructura por bloque (u, v):
+        [[ 0,   1 ],
+         [ -1,  0 ]] * (1/S)
+         
+        Justificación:
+        Las ecuaciones de movimiento son:
+        du/dt =  dH/dv
+        dv/dt = -dH/du
+        """
+        dim = self.assembler.dim_total
+        num_blocks = self.assembler.dim_blocks # 2*N_max + 1
+        
+        # Construimos bloques 2x2 repetidos
+        # Nota: El prefactor 1/S es crucial para obtener unidades de frecuencia correctas
+        # si el Hamiltoniano tiene unidades de Energía.
+        inv_S = 1.0 / self.p.S
+        
+        # Bloque sigma_y extendido
+        # data tiene forma (num_blocks, 2, 2)
+        block = np.array([[0, 1], [-1, 0]], dtype=complex) * inv_S
+        data = np.tile(block, (num_blocks, 1, 1))
+        
+        # Indices de bloques (diagonal)
+        indices = np.arange(num_blocks)
+        indptr = np.arange(num_blocks + 1)
+        
+        # Matriz dispersa por bloques (Block Sparse Row) es muy eficiente para esto
+        Sigma_sparse = bsr_matrix((data, indices, indptr), shape=(dim, dim))
+        
+        return Sigma_sparse
+
+    def solve_k(self, k):
+        """
+        Resuelve el espectro para un k dado.
+        """
+        # 1. Construir H(k) (Dispersa)
+        H_sparse = self.assembler.build_k(k)
+        H_dense = H_sparse.toarray()
+        # --- DIAGNÓSTICO DE HERMITICIDAD ---
+        diff = H_dense - np.conjugate(H_dense.T)
+        max_error = np.max(np.abs(diff))
+        print(f"k = {k:.2f} | Error de Hermiticidad: {max_error:.2e}")
+        
+        if max_error > 1e-10:
+            print("¡ALERTA! La matriz H no es Hermítica.")
+            # Opcional: imprimir dónde falla
+            # rows, cols = np.where(np.abs(diff) > 1e-10)
+            # print(rows, cols)
+        # 2. Construir Matriz Dinámica: D = Sigma @ H
+        # La multiplicación dispersa es eficiente.
+        Dyn_sparse = self.Sigma.dot(H_sparse)
+        
+        # 3. Convertir a Densa para diagonalización
+        # (eig de numpy/scipy no soporta dispersas generales eficientemente para todo el espectro)
+        Dyn_dense = Dyn_sparse.toarray()
+        
+        # 4. Diagonalización General (No Hermítica)
+        # Usamos eig, no eigh, porque D no es Hermítica (es Pseudo-Hermítica)
+        evals, evecs = np.linalg.eig(Dyn_dense)
+        
+        # 5. Procesamiento de Eigenvalores
+        # En este formalismo (Sigma = i*sigma_y), las frecuencias físicas
+        # aparecen como la parte IMAGINARIA de los eigenvalores.
+        # (O la real, dependiendo de si definiste d/dt = M o i d/dt = M).
+        
+        # En tu código homogéneo usaste: evals = np.sort(np.imag(evals))
+        # Esto implica que tu Sigma incluye el 'i'.
+        # Mi implementación arriba [[0, 1], [-1, 0]] es puramente Real.
+        # Entonces: i w = Sigma * H * psi  =>  w = -i * Sigma * H * psi
+        # Los eigenvalores de (Sigma*H) serán puramente imaginarios conjugados (+iw, -iw).
+        
+        freqs = np.imag(evals)
+        
+        # 6. Ordenamiento y Filtrado
+        # Obtenemos pares +/- w. Nos interesan las frecuencias positivas.
+        freqs = np.sort(freqs)
+        
+        # Retornamos la mitad superior (Frecuencias positivas)
+        # Esto asume estabilidad (todas freqs reales).
+        # Si hay inestabilidad, la parte real de 'evals' sería no nula.
+        
+        mid_point = len(freqs) // 2
+        positive_bands = freqs[mid_point:] 
+        
+        return positive_bands, evecs
+
+    def solve_path(self, k_path):
+        bands = []
+        for k in k_path:
+            energies, _ = self.solve_k(k)
+            bands.append(energies)
+        return np.array(bands)
+
+# Capa 6: PLOTTING & VISUALIZATION
+class MagnonPlotter:
+    def __init__(self, params):
+        self.p = params
+
+    def plot_dispersion(self, k_vals, bands, title="Dispersión de Magnones (Marco Rotado)"):
+        """
+        Grafica las bandas de energía en la zona extendida.
+        
+        Args:
+            k_vals (array): Vector de momentos k (usualmente -pi a pi).
+            bands (array): Matriz de energías (N_k, N_bandas).
+        """
+        plt.figure(figsize=(10, 6))
+        
+        # 1. Graficar Bandas (Spaghetti)
+        # Iteramos por columnas para que matplotlib maneje los colores o usamos un color único
+        num_bands = bands.shape[1]
+        
+        # Usamos un color oscuro con transparencia para visualizar densidad de estados
+        plt.plot(k_vals, bands, color='navy', alpha=0.5, linewidth=1.2)
+
+        # 2. Líneas de Referencia Físicas
+        # Límites de la Zona de Brillouin Atómica
+        plt.axvline(-np.pi, color='k', linestyle='-', linewidth=2)
+        plt.axvline(np.pi, color='k', linestyle='-', linewidth=2)
+        
+        # Vector de Modulación Q (si es relevante para la escala)
+        if hasattr(self.p, 'Q'):
+            plt.axvline(self.p.Q/2, color='r', linestyle='--', alpha=0.4, label=r'$q_{spiral}$')
+            plt.axvline(-self.p.Q/2, color='r', linestyle='--', alpha=0.4)
+
+        # 3. Formato "Sencillo y Conciso"
+        plt.title(title, fontsize=14)
+        plt.xlabel(r'Momento $k$ ($1/a$)', fontsize=12)
+        plt.ylabel(r'Energía $\hbar\omega$ ($JS$)', fontsize=12)
+        plt.xlim(-np.pi, np.pi)
+        plt.grid(True, which='both', linestyle='--', alpha=0.3)
+        plt.tight_layout()
+        
+        plt.show()
+
+# --- EJEMPLO DE USO (PIPELINE COMPLETO) ---
+if __name__ == "__main__":
+    # 1. Configuración
+    params = get_default_params() # Definido en Capa 1
+    # Nota: N_max define cuántas bandas "sombra" ves. 
+    # Para ver el spaghetti completo, N_max=10 o 20 es bueno.
+    config = SimConfig(N_max=0, N_k=500) 
+    
+    # 2. Pipeline de Cálculo
+    l_factory = LambdaFactory(params, config)
+    l_factory.lambdas = l_factory.precompute_all() # Importante: Pre-calcular
+    
+    g_factory = GammaFactory(params, config, l_factory.lambdas)
+    assembler = HamiltonianAssembler(params, config, g_factory, config.N_max)
+    solver = MagnonSolver(assembler)
+    
+    # 3. Solución en Zona Extendida (-pi a pi)
+    k_path = np.linspace(-np.pi, np.pi, config.N_k)
+    bands = solver.solve_path(k_path)
+    
+    # 4. Plotting
+    plotter = MagnonPlotter(params)
+    plotter.plot_dispersion(k_path, bands)

@@ -23,7 +23,10 @@ q_c = 2.0 * math.pi / 3.0
 
 DEFAULT_SETS = [
 	#("Set 1", 48.891035, 48.620365, 1.26126, 48.9119, 0.31,1198),
-	("Set 2", 46.75, 44.85, 2.6, 45.4, 0.76, 1198),
+    ("MoI3", 46.812805, 44.873295, 2.60139, 45.4866, 0.76, 6012),
+    ("MoI3", 46.812805, 44.873295, 2.60139, 45.4866, 0.76, 5010),
+    ("MoI3", 46.812805, 44.873295, 2.60139, 45.4866, 0.76, 4008),
+    ("MoI3", 46.812805, 44.873295, 2.60139, 45.4866, 0.76, 3006),
 	#("Set 3", 17.10185, 11.80055, 0.0085, 16.8117, 0.33, 1198),
 	#("Set 4", 17.10185, 1.80055, 8.5, 18.1212, 3.3, 1198),
 
@@ -263,33 +266,90 @@ def find_local_minima(q_arr, e_arr, window=1, tol_factor=0.5):
     return q[idxs[keep]], e[idxs[keep]], idxs[keep]
 
 
+def get_true_minimum_parabolic(q_arr, e_arr, idx_min):
+    """
+    Realiza una interpolación parabólica usando el mínimo discreto y sus dos vecinos.
+    Retorna el q verdadero, la energía verdadera y los coeficientes de la parábola.
+    """
+    # Si el mínimo está en los bordes, no podemos hacer interpolación central
+    if idx_min == 0 or idx_min == len(q_arr) - 1:
+        return float(q_arr[idx_min]), float(e_arr[idx_min]), None
+        
+    # Tomar los 3 puntos: el mínimo y sus vecinos inmediatos
+    q_points = q_arr[idx_min-1 : idx_min+2]
+    e_points = e_arr[idx_min-1 : idx_min+2]
+    
+    # Ajuste polinomial: E(q) = a*q^2 + b*q + c
+    coefs = np.polyfit(q_points, e_points, 2)
+    a, b, c = coefs
+    
+    # Verificar que sea cóncavo hacia arriba (un mínimo real)
+    if a <= 0:
+        return float(q_arr[idx_min]), float(e_arr[idx_min]), None
+        
+    # Vértice analítico
+    q_true = -b / (2.0 * a)
+    e_true = a * (q_true**2) + b * q_true + c
+    
+    return q_true, e_true, coefs
+
 def plot_profile_modulated(name, q, e, params=None, param_names=PARAM_NAMES, report=REPORT_PARAMS, q_c=q_c, outdir="profiles", windings=None):
     os.makedirs(outdir, exist_ok=True)
-    fig, ax = plt.subplots(figsize=(7.5, 4.0))
+    fig, ax = plt.subplots(figsize=(8.5, 5.0)) # Un poco más ancho para la leyenda
     
-    ax.plot(q, e, lw=1.0, label="E_min(q)")
-    ax.axvline(q_c, color="k", ls="--", label="q_c")
+    # Graficar la curva discreta principal
+    ax.plot(q, e, lw=1.0, color="C0", label="E_min(q) Discreto")
     
     phis_min, Umins, idxs = find_local_minima(q, e)
     
+    
     if idxs.size > 0:
-        ax.scatter(q[idxs], Umins, c="C3", label="min (local)")
-        if params is not None:
-            report_idx = [param_names.index(p) for p in report if p in param_names]
-            for idx in idxs:
-                w_str = f"M={windings[idx]:.1f}, " if windings is not None else ""
-                msg = f"MIN: {w_str}q={q[idx]:.5f}, E={e[idx]:.6f}"
+        # Plotear los mínimos discretos (Puntos Rojos)
+        ax.scatter(q[idxs], Umins, c="C3", zorder=3, label="Mínimo Discreto (PBC)")
+        
+        report_idx = [param_names.index(p) for p in report if p in param_names] if params is not None else []
+        
+        # Iterar sobre cada mínimo encontrado para hacer el ajuste parabólico
+        for i, idx in enumerate(idxs):
+            q_true, e_true, coefs = get_true_minimum_parabolic(q, e, idx)
+            
+            # Si el ajuste fue exitoso, dibujamos la parábola y el mínimo real
+            if coefs is not None:
+                a = float(coefs[0])
+                b = float(coefs[1])
+                c = float(coefs[2])
                 
-                if report_idx:
-                    # Imprimir Alpha_ind para ver si hubo bunching
-                    pairs = [f"{param_names[j]}={params[idx, j]:.4f}" for j in report_idx]
-                    msg += " | " + ", ".join(pairs)
-                print(msg)
+                # Crear un rango fino de q alrededor del mínimo para trazar la parábola
+                dq = q[idx] - q[idx-1] if idx > 0 else 0.01
+                q_para = np.linspace(q[idx] - 1.5*dq, q[idx] + 1.5*dq, 50)
+                e_para = a * q_para**2 + b * q_para + c
+                
+                # Etiquetas solo para el primer ciclo (evita duplicados en la leyenda)
+                label_para = "Ajuste Parabólico" if i == 0 else None
+                label_true = "Mínimo Continuo ($q_{\\infty}$)" if i == 0 else None
+                
+                # Dibujar la curva de la parábola (verde punteada)
+                ax.plot(q_para, e_para, 'g--', lw=1.5, zorder=4, label=label_para)
+                
+                # Dibujar el vértice continuo real (Estrella Verde)
+                ax.scatter(q_true, e_true, c="tab:green", marker="*", s=150, edgecolor="black", zorder=5, label=label_true)
+            
+            # --- REPORTE EN TERMINAL ---
+            w_str = f"M={windings[idx]:.1f}, " if windings is not None else ""
+            
+            # Mostramos el q de la red y el q extrapolado
+            msg = f"MIN: {w_str}q_disc={q[idx]:.10f}, E_disc={e[idx]:.6f} -> q_true={q_true:.10f}, E_true={e_true:.6f}"
+            
+            if params is not None and report_idx:
+                pairs = [f"{param_names[j]}={params[idx, j]:.4f}" for j in report_idx]
+                msg += " | " + ", ".join(pairs)
+            print(msg)
                 
     ax.set_xlabel("q (rad)")
     ax.set_ylabel("Energy / site")
     ax.set_title(name)
     ax.legend()
+    ax.grid(alpha=0.3) # Agregué una grilla suave que ayuda mucho visualmente
     plt.tight_layout()
     plt.show()
     return q[idxs] if idxs.size > 0 else np.array([])
@@ -297,7 +357,6 @@ def plot_profile_modulated(name, q, e, params=None, param_names=PARAM_NAMES, rep
 
 def analyze_sets_modulated(
     sets=DEFAULT_SETS,
-    Mq=18001,
     initial_guess: Sequence[float] | np.ndarray | None = None,
     D_plane_val: float = 0.0, # <-- NUEVO ARGUMENTO (Por defecto 0 apaga el efecto)
 ):
@@ -312,15 +371,14 @@ def analyze_sets_modulated(
         
         chain_length = int(n_spins)
         print(f"\nProcesando: {name} (N={chain_length})")
+        print(f"Malla q: {chain_length} puntos, dq = 2pi/N = {2.0 * math.pi / chain_length:.6e}")
         
         t0 = time.time()
-        M_max = min(Mq, chain_length)
         
-        # Llamada con D_plane_val propagado
+        # M_values=None -> usa automáticamente M=0..N-1 => q_m = 2pi*m/N
         Mvals, qvals, evals, params, success = e_min_vs_winding_modulated(
             Jbar, dJ, J2, K, D_axis, D_plane_val,
             chain_length=chain_length,
-            M_values=np.arange(M_max, dtype=int),
             init_guess=guess,
         )
         
@@ -344,7 +402,7 @@ def analyze_sets_modulated(
         
         # Plotting
         qmins = plot_profile_modulated(
-            f"{name} (D_plane={D_plane_val})", 
+            f"{name} Ajuste parabólico, N ={chain_length}", 
             qvals, evals, params=params, windings=Mvals
         )
         
@@ -359,4 +417,4 @@ def analyze_sets_modulated(
 if __name__ == "__main__":
     # Prueba con un valor de anisotropía en el plano para activar el bunching
     # D_plane = 0.5 es un valor razonable para empezar a ver efectos fuertes.
-    analyze_sets_modulated(DEFAULT_SETS, Mq=3001, D_plane_val=0)
+    analyze_sets_modulated(DEFAULT_SETS, D_plane_val=0)

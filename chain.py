@@ -4,7 +4,7 @@ from scipy.linalg import expm
 from dot import Mdot 
 from Heff import  dt, total_time, n
 from rand import generar_cadena_spines
-from cadena0 import cadena0ansatz,cadena0spinhistory,cadena0harmonic_PBC
+from cadena0 import cadena0spinhistory,cadena0harmonic_PBC
 from rot_methods import implicit_midpoint_step_vectorized_PBC_folded,implicit_midpoint_step_vectorized_PBC, implicit_midpoint_step_vectorized_FOBC, implicit_midpoint_step_vectorized_PBC_numba
 from animation import animation 
 from E import ET_PBC

@@ -15,41 +15,6 @@ def cadena0spinhistory(n):
         result.append(vec)
     return np.array(result)
 
-def cadena0ansatz(n, q, vartA, vartB, phi_sign=1.0, noise_x=0.0):
-    """Genera el estado base helicoidal (θ-modulado) coherente con direct.py.
-
-    Args:
-        n: número total de espines en la cadena (se asume alternancia A/B).
-        q: incremento helicoidal por sitio (mismo q usado en direct.py).
-        vartA, vartB: offsets polares para las subredes A y B (en radianes).
-        phi_sign: +1 fija φ=+π/2 (y>0); -1 aplica φ=-π/2 (y<0) en toda la cadena.
-        noise_x: amplitud opcional de ruido aleatorio en el eje x (hard axis) para
-                  romper degeneraciones numéricas; por defecto 0 → espiral ideal.
-
-    Returns:
-        np.ndarray de forma (n, 3) con los vectores de espín normalizados.
-    """
-    idx = np.arange(n, dtype=int)
-    is_B = (idx % 2 == 1)
-
-    # El ansatz en direct.py asigna θ_i = i·q + vartheta_{subred} para reproducir los saltos q±Δ.
-    theta_offsets = np.where(is_B, vartB, vartA)
-    theta = idx * q + theta_offsets
-
-    spins = np.zeros((n, 3), dtype=float)
-    spins[:, 1] = phi_sign * np.sin(theta)  # componente y
-    spins[:, 2] = np.cos(theta)             # componente z
-
-    if noise_x != 0.0:
-        noise = noise_x * np.random.randn(n)
-        noise -= noise.mean()
-        spins[:, 0] = noise
-
-    # Normalizar cada espín para asegurar |S|=1 (relevante si hay ruido en x).
-    norms = np.linalg.norm(spins, axis=1, keepdims=True)
-    np.divide(spins, norms, out=spins, where=norms > 0)
-    return spins
-
 
 
 def cadena0harmonic_PBC(

@@ -7,17 +7,17 @@ from dot import dot, Mdot
 #De = 0.31
 #Ka= 48.9119 
 # Set 2 parameters
-Jnn = 46.75
-dJnn = 44.85
-Jnnn = 2.6
-Ka = 45.4
-De = 0.76
-D_plane = 0
-#Jnn = 46.812805
-#dJnn = 44.873295
+#Jnn = 46.75
+#dJnn = 44.85
+#Jnnn = 2.6
+#Ka = 45.4
 #De = 0.76
-#Jnnn = 2.60139
-#Ka = 45.4866
+D_plane = 0
+Jnn = 46.812805
+dJnn = 44.873295
+De = 0.76
+Jnnn = 2.60139
+Ka = 45.4866
 #Jnn = 17.10185
 #dJnn = 11.80055
 #De = 0.33
@@ -230,7 +230,7 @@ def H_eff_pbc_numba_in(cadena, J_pair_left, J_pair_right, J_nnn, D_aniso, K_biq)
         # --- ASIGNACIÓN FINAL (Segura para empty_like) ---
         # Anisotropía en X (S_i[0]) e Y (S_i[1])
         H_total[i, 0] = nn0 + nnn0 + D_aniso * S_i[0] + biq0
-        H_total[i, 1] = nn1 + nnn1 + 0.5 * D_aniso * S_i[1] + biq1
+        H_total[i, 1] = nn1 + nnn1 +  1.05*D_aniso * S_i[1] + biq1
         H_total[i, 2] = nn2 + nnn2 + biq2
 
     return H_total

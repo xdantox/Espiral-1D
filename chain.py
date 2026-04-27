@@ -25,6 +25,6 @@ for j in range(num_pasos-1):
     Spin_history[j+1] = c_0
 
 Energy = ET_PBC(c_0[np.newaxis,:,:])  # Energía total de la cadena en el tiempo
-print(f"Energy/N = {float(Energy)/n:.6f}")
 np.save("spin_history.npy", Spin_history)
+print(f"Energy/N = {float(Energy)/n:.6f}")
 animation(Spin_history,dt)  # Animación de la evolución de los espines

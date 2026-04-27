@@ -4,23 +4,21 @@ from scipy.special import jv
 
 # --- 1. PARÁMETROS FÍSICOS ---
 norm = 0.05788 
-Jnn  = 46.75 / norm
-dJnn = 44.85 / norm
-Jnnn = 2.6 / norm
+Jnn  = 46.812805 / norm
+dJnn = 44.873295 / norm
+Jnnn = 2.60139 / norm
 D_xx = 0.76 / norm        # D (Hard Axis - Bare)
-K    = -45.4 / norm
+K    = -45.4866 / norm
 D_yy = -0.76 / norm        # D_plane (In-Plane - Modulado)
 S_mag = 1.0
-
 # --- PARÁMETROS DE GEOMETRÍA ---
-q_real = 2.10838
-theta_A_offset = np.pi/2-0.2841
-theta_B_offset = np.pi/2 +0.2841
-alpha = 0.0036
+q_real = 2.1083810463
+gamma =2.8578
+alpha = 0.0045
 
 # --- TRUNCAMIENTO FLOQUET ---
 # Incluye armónicos m = 0, ±1, ..., ±N_max
-N_max = 6
+N_max = 1
 
 # --- ARGUMENTOS DE BESSEL ---
 eps_1 = 2 * abs(alpha) * np.sin(q_real)
@@ -33,9 +31,9 @@ th_vca = np.zeros(c)
 for i in range(c):
     m = i // 2
     if i % 2 == 0:
-        th_vca[i] = 2 * m * q_real + theta_A_offset
+        th_vca[i] = 2 * m * q_real + gamma
     else:
-        th_vca[i] = (2 * m + 1) * q_real + theta_B_offset
+        th_vca[i] = (2 * m + 1) * q_real - gamma
 
 # =============================================================================
 # FUNCIONES DE BLOQUE CORREGIDAS

@@ -14,6 +14,8 @@ from numpy.typing import ArrayLike
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import minimize
+from matplotlib.axes import Axes
+from matplotlib.ticker import ScalarFormatter
 
 # --- CONSTANTES GLOBALES ---
 q_c = 2.0 * math.pi / 3.0
@@ -23,10 +25,7 @@ q_c = 2.0 * math.pi / 3.0
 
 DEFAULT_SETS = [
 	#("Set 1", 48.891035, 48.620365, 1.26126, 48.9119, 0.31,1198),
-    ("MoI3", 46.812805, 44.873295, 2.60139, 45.4866, 0.76, 6012),
-    ("MoI3", 46.812805, 44.873295, 2.60139, 45.4866, 0.76, 5010),
-    ("MoI3", 46.812805, 44.873295, 2.60139, 45.4866, 0.76, 4008),
-    ("MoI3", 46.812805, 44.873295, 2.60139, 45.4866, 0.76, 3006),
+    ("MoI3", 46.812805, 44.873295, 2.60139, 45.4866, 0.76, 1198),
 	#("Set 3", 17.10185, 11.80055, 0.0085, 16.8117, 0.33, 1198),
 	#("Set 4", 17.10185, 1.80055, 8.5, 18.1212, 3.3, 1198),
 
@@ -34,6 +33,8 @@ DEFAULT_SETS = [
 PARAM_NAMES = (
     "mx",
     "gamma",
+    "beta_mq",
+    "phi_mq",
     "alpha_ind",
     "phi_ind",
 )
@@ -62,6 +63,8 @@ def theta_n(
     n: Iterable[int],
     q: float,
     gamma: float,
+    beta_mq: float,
+    phi_mq: float,
     alpha_ind: float,
     phi_ind: float,
 ) -> np.ndarray:
@@ -70,8 +73,9 @@ def theta_n(
     base = idx * q
     parity = np.where((idx & 1) == 0, 1.0, -1.0)
     
-    # Perfil base + Dimerización + Modulación armónica (Soliton Lattice)
+    # Perfil base + Dimerización + Armónicos m*q y 2*m*q (Soliton Lattice extendido)
     profile = base + gamma * parity
+    profile += beta_mq * np.sin(4.0 * q * idx + phi_mq)
     profile += alpha_ind * np.sin(2.0 * q * idx + phi_ind)
     return profile
 
@@ -80,6 +84,24 @@ def _canting_weights(mx: float) -> Tuple[float, float]:
     mx_sq = mx * mx
     plane_weight = max(0.0, 1.0 - mx_sq)
     return mx_sq, plane_weight
+
+
+def _format_fraction(numer: int, denom: int) -> str:
+    if denom == 0:
+        return "0"
+    return f"{numer}*2π/{denom}"
+
+
+def _apply_scientific_axes(ax: Axes, axes: str = "y", power_limits: tuple[int, int] = (-2, 2)) -> None:
+    fmt = ScalarFormatter(useMathText=True)
+    fmt.set_scientific(True)
+    fmt.set_powerlimits(power_limits)
+    fmt.set_useOffset(False)
+
+    if "x" in axes:
+        ax.xaxis.set_major_formatter(fmt)
+    if "y" in axes:
+        ax.yaxis.set_major_formatter(fmt)
 
 
 # --- NÚCLEO FÍSICO ---
@@ -194,7 +216,7 @@ def e_min_vs_winding_modulated(
     D_plane: float, # Argumento añadido
     chain_length: int,
     M_values: Sequence[int] | np.ndarray | ArrayLike | None = None,
-    init_guess = np.array([0.0, -0.3, 0.0, 0.0]),
+    init_guess = np.array([0.0, -0.3, 0.0, 0.0, 0.0, 0.0]),
     bounds=DEFAULT_BOUNDS,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     
@@ -293,19 +315,55 @@ def get_true_minimum_parabolic(q_arr, e_arr, idx_min):
     
     return q_true, e_true, coefs
 
-def plot_profile_modulated(name, q, e, params=None, param_names=PARAM_NAMES, report=REPORT_PARAMS, q_c=q_c, outdir="profiles", windings=None):
+def plot_profile_modulated(
+    name,
+    q,
+    e,
+    params=None,
+    param_names=PARAM_NAMES,
+    report=REPORT_PARAMS,
+    q_c=q_c,
+    outdir="profiles",
+    windings=None,
+    scientific_axes: str = "y",
+):
     os.makedirs(outdir, exist_ok=True)
     fig, ax = plt.subplots(figsize=(8.5, 5.0)) # Un poco más ancho para la leyenda
     
     # Graficar la curva discreta principal
-    ax.plot(q, e, lw=1.0, color="C0", label="E_min(q) Discreto")
+    ax.plot(q, e, lw=1.0, color="C0", label="Discret E_min(q)")
+
+    if windings is not None:
+        # Demarca los k discretos en el mismo eje q usando ticks menores en rojo.
+        y_floor = -25.0
+        y_max = float(np.max(e))
+        ax.vlines(q, y_floor, y_max, colors="C3", alpha=1.0, linewidth=1.0, zorder=0, label="Discrete k grid")
+
+        n_sites = int(np.asarray(windings).size)
+        if n_sites > 0:
+            m_ticks = np.arange(0, n_sites, dtype=int)
+            ax.set_xticks(q, minor=True)
+            ax.set_xticklabels([_format_fraction(int(m), n_sites) for m in m_ticks], minor=True, rotation=0)
+
+            major_size = plt.rcParams.get("xtick.labelsize", 10)
+            if major_size == "medium":
+                major_size = 10
+
+            ax.tick_params(
+                axis="x",
+                which="minor",
+                colors="C3",
+                labelsize=major_size,
+                pad=14,
+                length=3,
+            )
     
     phis_min, Umins, idxs = find_local_minima(q, e)
     
     
     if idxs.size > 0:
         # Plotear los mínimos discretos (Puntos Rojos)
-        ax.scatter(q[idxs], Umins, c="C3", zorder=3, label="Mínimo Discreto (PBC)")
+        ax.scatter(q[idxs], Umins, c="C3", zorder=3, label="Discret minimum (PBC)")
         
         report_idx = [param_names.index(p) for p in report if p in param_names] if params is not None else []
         
@@ -325,8 +383,8 @@ def plot_profile_modulated(name, q, e, params=None, param_names=PARAM_NAMES, rep
                 e_para = a * q_para**2 + b * q_para + c
                 
                 # Etiquetas solo para el primer ciclo (evita duplicados en la leyenda)
-                label_para = "Ajuste Parabólico" if i == 0 else None
-                label_true = "Mínimo Continuo ($q_{\\infty}$)" if i == 0 else None
+                label_para = "Parabolic fit" if i == 0 else None
+                label_true = "True minimum ($q_{\\infty}$)" if i == 0 else None
                 
                 # Dibujar la curva de la parábola (verde punteada)
                 ax.plot(q_para, e_para, 'g--', lw=1.5, zorder=4, label=label_para)
@@ -341,13 +399,17 @@ def plot_profile_modulated(name, q, e, params=None, param_names=PARAM_NAMES, rep
             msg = f"MIN: {w_str}q_disc={q[idx]:.10f}, E_disc={e[idx]:.6f} -> q_true={q_true:.10f}, E_true={e_true:.6f}"
             
             if params is not None and report_idx:
-                pairs = [f"{param_names[j]}={params[idx, j]:.4f}" for j in report_idx]
+                pairs = [f"{param_names[j]}={params[idx, j]:.6f}" for j in report_idx]
                 msg += " | " + ", ".join(pairs)
             print(msg)
                 
     ax.set_xlabel("q (rad)")
-    ax.set_ylabel("Energy / site")
+    ax.set_ylabel("Energy / site (meV)")
     ax.set_title(name)
+    _apply_scientific_axes(ax, axes=scientific_axes)
+    ymin_now, ymax_now = ax.get_ylim()
+    if ymin_now > -25.0:
+        ax.set_ylim(-25.0, ymax_now)
     ax.legend()
     ax.grid(alpha=0.3) # Agregué una grilla suave que ayuda mucho visualmente
     plt.tight_layout()
@@ -402,7 +464,7 @@ def analyze_sets_modulated(
         
         # Plotting
         qmins = plot_profile_modulated(
-            f"{name} Ajuste parabólico, N ={chain_length}", 
+            f"{name} Parabolic fit, N ={chain_length}", 
             qvals, evals, params=params, windings=Mvals
         )
         
@@ -417,4 +479,4 @@ def analyze_sets_modulated(
 if __name__ == "__main__":
     # Prueba con un valor de anisotropía en el plano para activar el bunching
     # D_plane = 0.5 es un valor razonable para empezar a ver efectos fuertes.
-    analyze_sets_modulated(DEFAULT_SETS, D_plane_val=0)
+    analyze_sets_modulated(DEFAULT_SETS, D_plane_val=0.076)

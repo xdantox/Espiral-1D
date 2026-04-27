@@ -15,6 +15,7 @@
     transform: translateX(-50%);
     text-align: center;
     pointer-events: none;
+    z-index: 10;
   }
   #labels h1 {
     font-size: 15px;
@@ -25,7 +26,7 @@
   }
   #labels p {
     font-size: 11px;
-    color: #666;
+    color: #793838;
     margin-top: 3px;
     letter-spacing: 0.02em;
   }
@@ -39,6 +40,7 @@
     gap: 28px;
     align-items: center;
     pointer-events: none;
+    z-index: 10;
   }
   .leg-item {
     display: flex; align-items: center; gap: 7px;
@@ -65,14 +67,19 @@
     bottom: 22px; right: 20px;
     font-size: 10.5px; color: #888;
     text-align: right;
+    pointer-events: none;
+    z-index: 10;
   }
+
+  .dg.ac { z-index: 20 !important; }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.9/dat.gui.min.js"></script>
 </head>
 <body>
 <div id="container">
   <div id="labels">
     <h1>Cadena de espines en hélice magnética inconmensurable</h1>
-    <p>Q = 2.10838 ≈ 120.8° por sitio &nbsp;|&nbsp; Dímeros: espaciado corto / largo alternado</p>
+    <p id="dynamic-subtitle">Q = 2.10838 rad &nbsp;|&nbsp; Dímeros: espaciado corto / largo alternado</p>
   </div>
 
   <div id="legend">
@@ -121,15 +128,23 @@ rim.position.set(0, -6, -10);
 scene.add(rim);
 
 // ─── Chain parameters ─────────────────────────────────────────────────────────
-const N_DIMERS    = 20;
+const INITIAL_DIMERS = 20;
 const D_INTRA     = 0.42;   // short bond within dimer
 const D_INTER     = 0.72;   // larger gap between dimers
 const R_ATOM      = 0.14;
 const SPIN_LEN    = 0.58;
 const HEAD_L      = 0.16;
 const HEAD_R      = 0.065;
-// Incommensurate wavevector: golden angle per atom
-const Q = 2.2;  // ≈ 120.8°
+
+const physicsParams = {
+  n_dimers: INITIAL_DIMERS,
+  view_mode: 'PBC anillo',
+  Q: 2.10838,
+  gamma: -0.28,
+  alpha_ind: 0.0,
+  phi_ind: 0.0,
+  autoRotate: true
+};
 
 // ─── Materials ────────────────────────────────────────────────────────────────
 const matAtom = new THREE.MeshPhongMaterial({
@@ -142,86 +157,196 @@ const matArrow = new THREE.MeshPhongMaterial({
   color: 0xe01010, specular: 0xff5555, shininess: 90,
   emissive: 0x330000
 });
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
 
-// ─── Build atom positions ──────────────────────────────────────────────────────
-const positions = [];
-let z = 0;
-for (let d = 0; d < N_DIMERS; d++) {
-  positions.push(z);
-  z += D_INTRA;
-  positions.push(z);
-  z += D_INTER;
-}
-const totalLen = z - D_INTER;
-const zOffset  = -totalLen / 2;
-positions.forEach((_, i) => positions[i] += zOffset);
-
-// ─── Atom spheres ─────────────────────────────────────────────────────────────
-const gAtom = new THREE.SphereGeometry(R_ATOM, 20, 20);
-positions.forEach(z => {
-  const m = new THREE.Mesh(gAtom, matAtom);
-  m.position.set(0, 0, z);
-  scene.add(m);
-});
-
-// ─── Intra-dimer bonds (cylinders) ────────────────────────────────────────────
-for (let d = 0; d < N_DIMERS; d++) {
-  const z0 = positions[d * 2], z1 = positions[d * 2 + 1];
-  const len = z1 - z0 - 1.8 * R_ATOM;
-  const gBond = new THREE.CylinderGeometry(0.038, 0.038, len, 9);
-  const m = new THREE.Mesh(gBond, matBond);
-  m.position.set(0, 0, (z0 + z1) / 2);
-  m.rotation.x = Math.PI / 2;
-  scene.add(m);
-}
-
-// ─── Spin arrows ──────────────────────────────────────────────────────────────
-// Custom arrow: cylinder shaft + cone head
-function makeArrow(theta) {
+// ─── Spin arrows (dynamic) ───────────────────────────────────────────────────
+function makeArrowAlongX() {
   const group = new THREE.Group();
-  const sx = Math.cos(theta), sy = Math.sin(theta);
-  const dir = new THREE.Vector3(sx, sy, 0);
-
   const shaftLen = SPIN_LEN - HEAD_L;
   const gShaft = new THREE.CylinderGeometry(0.025, 0.025, shaftLen, 8);
   const mShaft = new THREE.Mesh(gShaft, matArrow.clone());
-  // shaft: starts at origin, points along dir
-  mShaft.position.copy(dir.clone().multiplyScalar(shaftLen / 2));
-  mShaft.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+  mShaft.position.set(shaftLen / 2, 0, 0);
+  mShaft.rotation.z = -Math.PI / 2;
   group.add(mShaft);
 
   const gHead = new THREE.ConeGeometry(HEAD_R, HEAD_L, 10);
   const mHead = new THREE.Mesh(gHead, matArrow.clone());
-  mHead.position.copy(dir.clone().multiplyScalar(shaftLen + HEAD_L / 2));
-  mHead.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+  mHead.position.set(shaftLen + HEAD_L / 2, 0, 0);
+  mHead.rotation.z = -Math.PI / 2;
   group.add(mHead);
-
   return group;
 }
 
-positions.forEach((z, i) => {
-  const theta = i * Q;
-  const arrow = makeArrow(theta);
-  arrow.position.set(0, 0, z);
-  scene.add(arrow);
+const chainGroup = new THREE.Group();
+scene.add(chainGroup);
+
+const spinObjects = [];
+const VIEW_MODES = {
+  ring: 'PBC anillo',
+  line: 'Cadena lineal'
+};
+
+function clearChainGroup() {
+  chainGroup.traverse((obj) => {
+    if (obj.geometry) obj.geometry.dispose();
+  });
+  while (chainGroup.children.length > 0) {
+    chainGroup.remove(chainGroup.children[0]);
+  }
+  spinObjects.length = 0;
+}
+
+function buildRingChain(nDimers) {
+  const siteAngles = [];
+  let arcLength = 0;
+  const cellLength = D_INTRA + D_INTER;
+  const totalLength = nDimers * cellLength;
+  const ringRadius = totalLength / (2 * Math.PI);
+
+  for (let d = 0; d < nDimers; d++) {
+    siteAngles.push((arcLength / totalLength) * 2 * Math.PI);
+    arcLength += D_INTRA;
+    siteAngles.push((arcLength / totalLength) * 2 * Math.PI);
+    arcLength += D_INTER;
+  }
+
+  const gAtom = new THREE.SphereGeometry(R_ATOM, 20, 20);
+  siteAngles.forEach((angle, n) => {
+    const radial = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
+    const tangent = new THREE.Vector3(-Math.sin(angle), 0, Math.cos(angle));
+    const atomPos = radial.clone().multiplyScalar(ringRadius);
+
+    const m = new THREE.Mesh(gAtom, matAtom);
+    m.position.copy(atomPos);
+    chainGroup.add(m);
+
+    const pivot = new THREE.Group();
+    pivot.position.copy(atomPos);
+
+    // Base local: X radial, Y normal al plano, Z tangente a la cadena.
+    // Con esta base, rotar en Z hace girar el espin en el plano normal
+    // (radial-normal), perpendicular al eje local de la cadena.
+    const basis = new THREE.Matrix4().makeBasis(radial, WORLD_UP, tangent);
+    pivot.setRotationFromMatrix(basis);
+
+    const arrow = makeArrowAlongX();
+    pivot.add(arrow);
+    chainGroup.add(pivot);
+    spinObjects.push({ pivot, n });
+  });
+
+  for (let i = 0; i < siteAngles.length; i++) {
+    const j = (i + 1) % siteAngles.length;
+    const a0 = siteAngles[i];
+    let a1 = siteAngles[j];
+    if (j === 0) a1 += 2 * Math.PI;
+
+    const angleGap = (R_ATOM / ringRadius) * 0.9;
+    const startArc = a0 + angleGap;
+    const endArc = a1 - angleGap;
+    if (endArc <= startArc) continue;
+
+    const points = [];
+    const segments = 12;
+    for (let s = 0; s <= segments; s++) {
+      const t = s / segments;
+      const a = startArc + t * (endArc - startArc);
+      points.push(new THREE.Vector3(ringRadius * Math.cos(a), 0, ringRadius * Math.sin(a)));
+    }
+
+    const bondPath = new THREE.CatmullRomCurve3(points);
+    const gBond = new THREE.TubeGeometry(bondPath, segments, 0.038, 8, false);
+    const mBond = new THREE.Mesh(gBond, matBond);
+    chainGroup.add(mBond);
+  }
+}
+
+function buildLineChain(nDimers) {
+  const positions = [];
+  let z = 0;
+  for (let d = 0; d < nDimers; d++) {
+    positions.push(z);
+    z += D_INTRA;
+    positions.push(z);
+    z += D_INTER;
+  }
+
+  const totalLen = z - D_INTER;
+  const zOffset = -totalLen / 2;
+  positions.forEach((_, i) => positions[i] += zOffset);
+
+  const gAtom = new THREE.SphereGeometry(R_ATOM, 20, 20);
+  positions.forEach((posZ, n) => {
+    const m = new THREE.Mesh(gAtom, matAtom);
+    m.position.set(0, 0, posZ);
+    chainGroup.add(m);
+
+    const pivot = new THREE.Group();
+    pivot.position.set(0, 0, posZ);
+    const arrow = makeArrowAlongX();
+    pivot.add(arrow);
+    chainGroup.add(pivot);
+    spinObjects.push({ pivot, n });
+  });
+
+  for (let i = 0; i < positions.length - 1; i++) {
+    const z0 = positions[i];
+    const z1 = positions[i + 1];
+    const len = (z1 - z0) - 1.8 * R_ATOM;
+    if (len <= 0) continue;
+    const gBond = new THREE.CylinderGeometry(0.038, 0.038, len, 9);
+    const mBond = new THREE.Mesh(gBond, matBond);
+    mBond.position.set(0, 0, (z0 + z1) / 2);
+    mBond.rotation.x = Math.PI / 2;
+    chainGroup.add(mBond);
+  }
+}
+
+function buildChain() {
+  clearChainGroup();
+  const nDimers = Math.max(2, Math.floor(physicsParams.n_dimers));
+  physicsParams.n_dimers = nDimers;
+
+  if (physicsParams.view_mode === VIEW_MODES.line) {
+    buildLineChain(nDimers);
+  } else {
+    buildRingChain(nDimers);
+  }
+}
+
+function updateSpins() {
+  const { Q, gamma, alpha_ind, phi_ind } = physicsParams;
+
+  spinObjects.forEach((spin) => {
+    const n = spin.n;
+    const parity = (n % 2 === 0) ? 1.0 : -1.0;
+    const thetaSpin = (n * Q) + (gamma * parity) + alpha_ind * Math.sin(2.0 * Q * n + phi_ind);
+    spin.pivot.rotation.z = thetaSpin;
+  });
+
+  document.getElementById('dynamic-subtitle').innerHTML =
+    `Modo = ${physicsParams.view_mode} &nbsp;|&nbsp; N<sub>d</sub> = ${physicsParams.n_dimers} &nbsp;|&nbsp; Q = ${Q.toFixed(5)} rad &nbsp;|&nbsp; γ = ${gamma.toFixed(2)} &nbsp;|&nbsp; α<sub>ind</sub> = ${alpha_ind.toFixed(2)}`;
+}
+
+buildChain();
+updateSpins();
+
+const gui = new dat.GUI({ width: 320 });
+gui.add(physicsParams, 'view_mode', [VIEW_MODES.ring, VIEW_MODES.line]).name('Visualizacion').onChange((mode) => {
+  radius = (mode === VIEW_MODES.line) ? 18 : 16;
+  updateCamera();
+  buildChain();
+  updateSpins();
 });
-
-// ─── Axis indicator (chain axis, thin gray line) ──────────────────────────────
-const axisGeo = new THREE.BufferGeometry().setFromPoints([
-  new THREE.Vector3(0, 0, zOffset - 0.4),
-  new THREE.Vector3(0, 0, -zOffset + 0.4)
-]);
-const axisLine = new THREE.Line(axisGeo, new THREE.LineBasicMaterial({
-  color: 0xbbbbbb, linewidth: 1
-}));
-scene.add(axisLine);
-
-// Small axis label cone (arrowhead at end)
-const gAxisHead = new THREE.ConeGeometry(0.045, 0.15, 10);
-const mAxisHead = new THREE.Mesh(gAxisHead, new THREE.MeshPhongMaterial({ color: 0x999999 }));
-mAxisHead.position.set(0, 0, -zOffset + 0.48);
-mAxisHead.rotation.x = -Math.PI / 2;
-scene.add(mAxisHead);
+gui.add(physicsParams, 'n_dimers', 2, 80).step(1).name('Numero de dimeros (N_d)').onFinishChange(() => {
+  buildChain();
+  updateSpins();
+});
+gui.add(physicsParams, 'Q', 0, Math.PI).step(0.0001).name('Pitch (Q)').onChange(updateSpins);
+gui.add(physicsParams, 'gamma', -Math.PI, Math.PI).step(0.01).name('Dimerizacion (gamma)').onChange(updateSpins);
+gui.add(physicsParams, 'alpha_ind', 0.0, 1.5).step(0.01).name('Bunching (alpha_ind)').onChange(updateSpins);
+gui.add(physicsParams, 'phi_ind', -Math.PI, Math.PI).step(0.01).name('Fase (phi_ind)').onChange(updateSpins);
+gui.add(physicsParams, 'autoRotate').name('Auto-rotacion');
 
 // ─── Orbit controls (manual implementation) ───────────────────────────────────
 let isDragging = false, lastX = 0, lastY = 0;
@@ -235,7 +360,12 @@ function updateCamera() {
 }
 updateCamera();
 
-renderer.domElement.addEventListener('mousedown', e => { isDragging = true; lastX = e.clientX; lastY = e.clientY; });
+renderer.domElement.addEventListener('mousedown', e => {
+  isDragging = true;
+  lastX = e.clientX;
+  lastY = e.clientY;
+  physicsParams.autoRotate = false;
+});
 renderer.domElement.addEventListener('mouseup',   () => isDragging = false);
 renderer.domElement.addEventListener('mousemove', e => {
   if (!isDragging) return;
@@ -254,7 +384,12 @@ renderer.domElement.addEventListener('wheel', e => {
 
 // Touch
 renderer.domElement.addEventListener('touchstart', e => {
-  if (e.touches.length === 1) { isDragging = true; lastX = e.touches[0].clientX; lastY = e.touches[0].clientY; }
+  if (e.touches.length === 1) {
+    isDragging = true;
+    lastX = e.touches[0].clientX;
+    lastY = e.touches[0].clientY;
+    physicsParams.autoRotate = false;
+  }
 });
 renderer.domElement.addEventListener('touchend', () => isDragging = false);
 renderer.domElement.addEventListener('touchmove', e => {
@@ -268,14 +403,10 @@ renderer.domElement.addEventListener('touchmove', e => {
   e.preventDefault();
 }, { passive: false });
 
-// ─── Auto-rotation (gentle) ───────────────────────────────────────────────────
-let autoRotate = true;
-renderer.domElement.addEventListener('mousedown', () => autoRotate = false);
-
 // ─── Render loop ──────────────────────────────────────────────────────────────
 function animate() {
   requestAnimationFrame(animate);
-  if (autoRotate) {
+  if (physicsParams.autoRotate) {
     theta_cam += 0.004;
     updateCamera();
   }

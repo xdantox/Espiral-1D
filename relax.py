@@ -9,7 +9,7 @@ from mpl_toolkits.mplot3d import Axes3D
 def cadena0spinhistory(n):
     # Asegúrate de que este archivo esté en la misma carpeta o ajusta la ruta
     try:
-        Spin_history = np.load('D_plane = 1.0D relax.npy', mmap_mode='r')
+        Spin_history = np.load('D_plane = 0.1D relax.npy', mmap_mode='r')
     except FileNotFoundError:
         print("ERROR: No se encuentra el archivo .npy. Usando datos sintéticos para demo.")
         # Generar datos sintéticos si no hay archivo (SOLO PARA DEMOSTRACIÓN)
@@ -51,7 +51,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def plot_theta_deformation(spins, plane_indices=(1, 2), n_range=(0, 400), title_suffix="", ansatz_params=None):
-    """Main pictorial representation of theta_n in real space."""
+    """Main pictorial representation of theta_n in real space with enhanced legibility."""
     n_sites = spins.shape[0]
     idx = np.arange(n_sites)
 
@@ -99,26 +99,34 @@ def plot_theta_deformation(spins, plane_indices=(1, 2), n_range=(0, 400), title_
     delta_theta = theta_unwrapped - theta_linear_llg_staggered
     alpha_fit = alpha_ansatz
 
-    # --- GRÁFICO 1: FASE ESPACIAL ---
-    fig_theta, ax_theta = plt.subplots(1, 1, figsize=(11, 4.5))
+    # ==========================================================================
+    # GRÁFICO 1: FASE ESPACIAL
+    # ==========================================================================
+    fig_theta, ax_theta = plt.subplots(1, 1, figsize=(11, 5))
 
-    ax_theta.plot(idx, theta_unwrapped, color="tab:blue", lw=1.1, label=r"$\theta_n$ (unwrapped)")
+    ax_theta.plot(idx, theta_unwrapped, color="tab:blue", lw=1.5, label=r"$\theta_n$ (unwrapped)")
     ax_theta.plot(
         idx,
         theta_model_harm_only,
         color="black",
-        lw=1.0,
+        lw=1.5,
         ls="--",
         label=(
             r"$\theta_n^{fit}=q_{LLG}n+\phi_{LLG}+\alpha_{Ans}\sin(2q_{Ans}n+\phi_{2q})$"
             + f"\n$q_{{Ans}}$={q_ans:.5f}, $\\alpha_{{Ans}}$={alpha_ansatz:.5f}"
         ),
     )
-    ax_theta.set_ylabel(r"$\theta_n$ [rad]")
-    ax_theta.set_xlabel("Site $n$")
-    ax_theta.set_title(r"Spatial Phase $\theta_n$" + (f" - {title_suffix}" if title_suffix else ""))
-    ax_theta.grid(True, alpha=0.25)
-    ax_theta.legend()
+    ax_theta.set_ylabel(r"$\theta_n$ [rad]", fontsize=16)
+    ax_theta.set_xlabel("Site $n$", fontsize=16)
+    
+    title_text = r"Spatial Phase $\theta_n$" + (f" - {title_suffix}" if title_suffix else "")
+    ax_theta.set_title(title_text, fontsize=18, fontweight='bold', pad=15)
+    
+    ax_theta.tick_params(axis='both', which='major', labelsize=14)
+    ax_theta.grid(True, alpha=0.3)
+    
+    # Leyenda forzada a la esquina superior derecha
+    ax_theta.legend(fontsize=13, loc='upper right')
     ax_theta.set_xlim(n_range)
 
     plt.tight_layout()
@@ -126,57 +134,80 @@ def plot_theta_deformation(spins, plane_indices=(1, 2), n_range=(0, 400), title_
 
     resid_ansatz = theta_harmonic
     
-    # --- GRÁFICO 2: RESIDUO DE FASE ---
-    fig_res, ax_res = plt.subplots(1, 1, figsize=(11, 4.5))
+    # ==========================================================================
+    # GRÁFICO 2: RESIDUO DE FASE (DOS PANELES)
+    # ==========================================================================
+    fig_res, (ax_res_top, ax_res_bottom) = plt.subplots(
+        2, 1, figsize=(11, 7.5), sharex=True
+    )
 
-    ax_res.plot(
+    ax_res_top.plot(
         idx,
         delta_theta,
         color="tab:purple",
-        lw=1.0,
+        lw=1.5,
         label=(
             r"$\delta\theta_n^{LLG} = \theta_n - (q_{LLG}n + \phi_{LLG} + \gamma_{LLG}(-1)^n)$"
             + "\n(Exact harmonic content)"
             + f"\n$q_{{LLG}}$={q_llg_display:.6f}"
         ),
     )
-    ax_res.plot(
+    ax_res_top.axhline(0.0, color="black", ls="--", lw=1.0, alpha=0.5)
+    ax_res_top.set_ylabel(r"$\delta\theta_n$ [rad]", fontsize=16)
+    ax_res_top.tick_params(axis='y', labelsize=14)
+    ax_res_top.grid(True, alpha=0.3)
+    
+    # Ajuste dinámico inteligente para el panel superior
+    ymin, ymax = ax_res_top.get_ylim()
+    ax_res_top.set_ylim(ymin, ymax + (ymax - ymin) * 0.45) # Agrega 45% de espacio arriba
+    ax_res_top.legend(fontsize=13, loc='upper right')
+
+    ax_res_bottom.plot(
         idx,
         resid_ansatz,
         color="black",
-        lw=1.0,
+        lw=1.5,
         ls="--",
         label=(
             r"Harmonic ansatz: $\alpha\sin(2qn+\phi_{2q})$"
             + f"\n$q_{{Ans}}$={q_ans:.6f}, $\\alpha_{{Ans}}$={alpha_ansatz:.5f}"
         ),
     )
-    ax_res.axhline(0.0, color="black", ls="--", lw=0.9, alpha=0.4)
-    ax_res.set_ylabel(r"$\delta\theta_n$ [rad]")
-    ax_res.set_xlabel("Site $n$")
-    ax_res.set_title(r"Phase Residual: Numerical (LLG) vs Analytical (Ansatz) Comparison")
-    ax_res.grid(True, alpha=0.25)
-    ax_res.legend()
-    ax_res.set_xlim(n_range)
+    ax_res_bottom.axhline(0.0, color="black", ls="--", lw=1.0, alpha=0.5)
+    ax_res_bottom.set_ylabel(r"$\delta\theta_n$ [rad]", fontsize=16)
+    ax_res_bottom.set_xlabel("Site $n$", fontsize=16)
+    ax_res_bottom.tick_params(axis='both', which='major', labelsize=14)
+    ax_res_bottom.grid(True, alpha=0.3)
+    
+    # Ajuste dinámico inteligente para el panel inferior
+    ymin, ymax = ax_res_bottom.get_ylim()
+    ax_res_bottom.set_ylim(ymin, ymax + (ymax - ymin) * 0.45) # Agrega 45% de espacio arriba
+    ax_res_bottom.legend(fontsize=13, loc='upper right')
+    ax_res_bottom.set_xlim(n_range)
 
+    fig_res.suptitle(r"Phase Residual: Numerical (LLG) vs Analytical (Ansatz) Comparison", fontsize=18, fontweight='bold')
     plt.tight_layout()
+    fig_res.subplots_adjust(top=0.92) 
     plt.show()
 
-    # --- GRÁFICO 3: ESPECTRO FFT ---
+    # ==========================================================================
+    # GRÁFICO 3: ESPECTRO FFT
+    # ==========================================================================
     delta_centered = delta_theta - np.mean(delta_theta)
     fft_delta = np.fft.rfft(delta_centered)
     k_delta = 2.0 * np.pi * np.fft.rfftfreq(n_sites)
     mag_delta = np.abs(fft_delta) / n_sites
 
-    fig, ax_spec = plt.subplots(1, 1, figsize=(11, 4.5))
+    fig, ax_spec = plt.subplots(1, 1, figsize=(11, 5))
 
     mask = (k_delta > 0) & (k_delta <= np.pi)
     ax_spec.plot(k_delta[mask], mag_delta[mask], color="tab:blue", lw=2.0, label=r"FFT of $\delta\theta_n$")
     ax_spec.set_yscale("log")
-    ax_spec.set_xlabel(r"$k$ [rad/site]")
-    ax_spec.set_ylabel(r"$|\delta\theta(k)|$")
-    ax_spec.set_title(r"FFT Spectrum of $\delta\theta_n$ (Harmonic Content)")
-    ax_spec.grid(True, which="both", alpha=0.25)
+    ax_spec.set_xlabel(r"$k$ [rad/site]", fontsize=16)
+    ax_spec.set_ylabel(r"$|\delta\theta(k)|$", fontsize=16)
+    ax_spec.set_title(r"FFT Spectrum of $\delta\theta_n$ (Harmonic Content)", fontsize=18, fontweight='bold', pad=15)
+    ax_spec.tick_params(axis='both', which='major', labelsize=14)
+    ax_spec.grid(True, which="both", alpha=0.3)
 
     def fold_k(k_val):
         """Pliega cualquier k a la primera zona de Brillouin visible [0, pi]"""
@@ -186,12 +217,13 @@ def plot_theta_deformation(spins, plane_indices=(1, 2), n_range=(0, 400), title_
     k_2q = fold_k(2.0 * q_ans)
     k_dimer = fold_k(2.0 * q_ans - np.pi)
 
-    ax_spec.axvline(k_2q, color="tab:red", linestyle="--", alpha=0.8, 
+    ax_spec.axvline(k_2q, color="tab:red", linestyle="--", alpha=0.8, lw=1.5,
                     label=r"$2q$ Harmonic (Folded $\approx$ " + f"{k_2q:.3f})")
-    ax_spec.axvline(k_dimer, color="tab:green", linestyle="--", alpha=0.8, 
+    ax_spec.axvline(k_dimer, color="tab:green", linestyle="--", alpha=0.8, lw=1.5,
                     label=r"$2q - \pi$ Interaction (Folded $\approx$ " + f"{k_dimer:.3f})")
 
-    ax_spec.legend()
+    # Leyenda forzada a la esquina superior derecha
+    ax_spec.legend(fontsize=13, loc='upper right')
 
     plt.tight_layout()
     plt.show()
@@ -217,7 +249,7 @@ IMPORTED_ANSATZ_PARAMS = {
     "q": 2.1083810463,
     "phi": 0.0,
     "gamma": 2.857791,
-    "alpha": 0.000358,
+    "alpha": 0.00358,
     "phi_2q": 0.0,
 }
 

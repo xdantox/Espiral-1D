@@ -37,10 +37,12 @@
     left: 50%;
     transform: translateX(-50%);
     display: flex;
-    gap: 28px;
-    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 20px;
     pointer-events: none;
     z-index: 10;
+    width: 85%;
   }
   .leg-item {
     display: flex; align-items: center; gap: 7px;
@@ -61,6 +63,15 @@
     border-bottom: 5px solid transparent;
   }
   .leg-bond { width: 22px; height: 5px; background: #8a909c; border-radius: 2px; }
+  
+  .leg-axis-x { width: 18px; height: 2px; background: #2b5cff; position: relative; }
+  .leg-axis-x::after { content: ''; position: absolute; right: -2px; top: -2.5px; border-left: 5px solid #2b5cff; border-top: 3.5px solid transparent; border-bottom: 3.5px solid transparent; }
+  
+  .leg-axis-y { width: 18px; height: 2px; background: #1f9e2e; position: relative; }
+  .leg-axis-y::after { content: ''; position: absolute; right: -2px; top: -2.5px; border-left: 5px solid #1f9e2e; border-top: 3.5px solid transparent; border-bottom: 3.5px solid transparent; }
+  
+  .leg-axis-z { width: 18px; height: 2px; background: #ff9900; position: relative; }
+  .leg-axis-z::after { content: ''; position: absolute; right: -2px; top: -2.5px; border-left: 5px solid #ff9900; border-top: 3.5px solid transparent; border-bottom: 3.5px solid transparent; }
 
   #controls {
     position: absolute;
@@ -83,9 +94,12 @@
   </div>
 
   <div id="legend">
-    <div class="leg-item"><div class="leg-sph"></div><span>átomo (dímero)</span></div>
-    <div class="leg-item"><div class="leg-bond"></div><span>enlace intra-dímero</span></div>
+    <div class="leg-item"><div class="leg-sph"></div><span>átomo</span></div>
+    <div class="leg-item"><div class="leg-bond"></div><span>enlace</span></div>
     <div class="leg-item"><div class="leg-arr"></div><span>espín S<sub>i</sub></span></div>
+    <div class="leg-item"><div class="leg-axis-x"></div><span>Eje X (Cadena)</span></div>
+    <div class="leg-item"><div class="leg-axis-y"></div><span>Eje Y (Hard-axis)</span></div>
+    <div class="leg-item"><div class="leg-axis-z"></div><span>Eje Z (Easy-axis / θ=0)</span></div>
   </div>
 
   <div id="controls">Arrastrar para rotar &nbsp;|&nbsp; Rueda: zoom</div>
@@ -107,34 +121,30 @@ container.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xffffff);
 
-// ─── Camera ───────────────────────────────────────────────────────────────────
 const camera = new THREE.PerspectiveCamera(28, W / H, 0.01, 200);
 camera.position.set(0, 6, 16);
 camera.lookAt(0, 0, 0);
 
-// ─── Lighting ─────────────────────────────────────────────────────────────────
 scene.add(new THREE.AmbientLight(0xffffff, 0.55));
-
 const key = new THREE.DirectionalLight(0xffffff, 1.0);
 key.position.set(6, 10, 8);
 scene.add(key);
-
 const fill = new THREE.DirectionalLight(0xd0e0ff, 0.4);
 fill.position.set(-5, 3, -4);
 scene.add(fill);
-
 const rim = new THREE.DirectionalLight(0xffeedd, 0.3);
 rim.position.set(0, -6, -10);
 scene.add(rim);
 
 // ─── Chain parameters ─────────────────────────────────────────────────────────
 const INITIAL_DIMERS = 20;
-const D_INTRA     = 0.42;   // short bond within dimer
-const D_INTER     = 0.72;   // larger gap between dimers
+const D_INTRA     = 0.42;   
+const D_INTER     = 0.72;   
 const R_ATOM      = 0.14;
 const SPIN_LEN    = 0.58;
 const HEAD_L      = 0.16;
 const HEAD_R      = 0.065;
+const R_ARC       = 0.35; 
 
 const physicsParams = {
   n_dimers: INITIAL_DIMERS,
@@ -143,57 +153,166 @@ const physicsParams = {
   gamma: -0.28,
   alpha_ind: 0.0,
   phi_ind: 0.0,
+  show_axes: true,
+  show_labels: true,
   autoRotate: true
 };
 
-// ─── Materials ────────────────────────────────────────────────────────────────
-const matAtom = new THREE.MeshPhongMaterial({
-  color: 0xb4bfce, specular: 0x888ea8, shininess: 110
-});
-const matBond = new THREE.MeshPhongMaterial({
-  color: 0x8a909c, specular: 0x555560, shininess: 60
-});
-const matArrow = new THREE.MeshPhongMaterial({
-  color: 0xe01010, specular: 0xff5555, shininess: 90,
-  emissive: 0x330000
-});
+const matAtom = new THREE.MeshPhongMaterial({ color: 0xb4bfce, specular: 0x888ea8, shininess: 110 });
+const matBond = new THREE.MeshPhongMaterial({ color: 0x8a909c, specular: 0x555560, shininess: 60 });
+const matArrow = new THREE.MeshPhongMaterial({ color: 0xe01010, specular: 0xff5555, shininess: 90, emissive: 0x330000 });
+const matArc = new THREE.MeshBasicMaterial({ color: 0xc41414 }); 
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 
-// ─── Spin arrows (dynamic) ───────────────────────────────────────────────────
-function makeArrowAlongX() {
+// ─── Helpers ────────────────────────────────────────────────────
+function makeSpinArrow() {
   const group = new THREE.Group();
   const shaftLen = SPIN_LEN - HEAD_L;
-  const gShaft = new THREE.CylinderGeometry(0.025, 0.025, shaftLen, 8);
-  const mShaft = new THREE.Mesh(gShaft, matArrow.clone());
-  mShaft.position.set(shaftLen / 2, 0, 0);
-  mShaft.rotation.z = -Math.PI / 2;
+  
+  const mShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, shaftLen, 8), matArrow);
+  mShaft.position.set(0, 0, shaftLen / 2);
+  mShaft.rotation.x = Math.PI / 2;
   group.add(mShaft);
 
-  const gHead = new THREE.ConeGeometry(HEAD_R, HEAD_L, 10);
-  const mHead = new THREE.Mesh(gHead, matArrow.clone());
-  mHead.position.set(shaftLen + HEAD_L / 2, 0, 0);
-  mHead.rotation.z = -Math.PI / 2;
+  const mHead = new THREE.Mesh(new THREE.ConeGeometry(HEAD_R, HEAD_L, 10), matArrow);
+  mHead.position.set(0, 0, shaftLen + HEAD_L / 2);
+  mHead.rotation.x = Math.PI / 2;
   group.add(mHead);
+  
   return group;
+}
+
+function makeAxisArrow(colorHex, colorStr, length, labelText) {
+  const group = new THREE.Group();
+  const mat = new THREE.MeshPhongMaterial({ 
+    color: colorHex, emissive: colorHex, emissiveIntensity: 0.2,
+    transparent: true, opacity: 0.75 
+  });
+
+  const headL = 0.06;
+  const headR = 0.025;
+  const shaftLen = length - headL;
+  const shaftR = 0.006; 
+
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(shaftR, shaftR, shaftLen, 8), mat);
+  shaft.position.y = shaftLen / 2;
+  group.add(shaft);
+
+  const head = new THREE.Mesh(new THREE.ConeGeometry(headR, headL, 10), mat);
+  head.position.y = shaftLen + headL / 2;
+  group.add(head);
+
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  canvas.width = 128; canvas.height = 128; // Mayor resolución para los ejes
+  context.font = "bold 56px Arial";
+  context.fillStyle = colorStr;
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText(labelText, 64, 64);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
+
+  const spriteMat = new THREE.SpriteMaterial({ map: texture, depthTest: false, transparent: true });
+  const sprite = new THREE.Sprite(spriteMat);
+  sprite.position.y = length + 0.08; 
+  sprite.scale.set(0.25, 0.25, 1.0);
+  group.add(sprite);
+
+  return group;
+}
+
+function makeLocalAxes() {
+  const group = new THREE.Group();
+  const len = SPIN_LEN * 1.05; 
+  
+  const axisX = makeAxisArrow(0x2b5cff, "#2b5cff", len, "X");
+  axisX.rotation.z = -Math.PI / 2; 
+  group.add(axisX);
+  
+  const axisY = makeAxisArrow(0x1f9e2e, "#1f9e2e", len, "Y");
+  group.add(axisY);
+  
+  const axisZ = makeAxisArrow(0xff9900, "#ff9900", len, "Z");
+  axisZ.rotation.x = Math.PI / 2; 
+  group.add(axisZ);
+  
+  return group;
+}
+
+function toSubscript(num) {
+  const subs = ['₀','₁','₂','₃','₄','₅','₆','₇','₈','₉'];
+  return num.toString().split('').map(d => subs[d]).join('');
+}
+
+// Genera texto en alta resolución para evitar bordes borrosos
+function makeTextSprite(message) {
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  canvas.width = 256; canvas.height = 128; // Alta resolución
+  context.font = "bold 70px Arial"; // Fuente grande
+  context.fillStyle = "#a81111"; 
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText(message, 128, 64);
+  
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter; // Previene borrosidad al acercar
+  texture.generateMipmaps = false; 
+
+  const spriteMaterial = new THREE.SpriteMaterial({ map: texture, depthTest: false, transparent: true });
+  const sprite = new THREE.Sprite(spriteMaterial);
+  sprite.scale.set(0.4, 0.2, 1.0); // Ajustar escala al nuevo canvas
+  return sprite;
 }
 
 const chainGroup = new THREE.Group();
 scene.add(chainGroup);
-
 const spinObjects = [];
-const VIEW_MODES = {
-  ring: 'PBC anillo',
-  line: 'Cadena lineal'
-};
+const VIEW_MODES = { ring: 'PBC anillo', line: 'Cadena lineal' };
 
 function clearChainGroup() {
-  chainGroup.traverse((obj) => {
-    if (obj.geometry) obj.geometry.dispose();
-  });
-  while (chainGroup.children.length > 0) {
-    chainGroup.remove(chainGroup.children[0]);
-  }
+  chainGroup.traverse((obj) => { if (obj.geometry) obj.geometry.dispose(); });
+  while (chainGroup.children.length > 0) chainGroup.remove(chainGroup.children[0]);
   spinObjects.length = 0;
+}
+
+function createNode(pos, basis, n) {
+  const siteGroup = new THREE.Group();
+  siteGroup.position.copy(pos);
+  if (basis) siteGroup.setRotationFromMatrix(basis);
+  
+  const mAtom = new THREE.Mesh(new THREE.SphereGeometry(R_ATOM, 20, 20), matAtom);
+  siteGroup.add(mAtom);
+
+  const axes = makeLocalAxes();
+  axes.visible = physicsParams.show_axes;
+  siteGroup.add(axes);
+
+  const spinPivot = new THREE.Group();
+  spinPivot.add(makeSpinArrow());
+  siteGroup.add(spinPivot);
+
+  const arcMat = new THREE.LineBasicMaterial({ color: 0xc41414, transparent: true, opacity: 0.8 });
+  const arcGeo = new THREE.BufferGeometry();
+  const arcPos = new Float32Array(17 * 3);
+  arcGeo.setAttribute('position', new THREE.BufferAttribute(arcPos, 3));
+  const arcLine = new THREE.Line(arcGeo, arcMat);
+  siteGroup.add(arcLine);
+
+  const arcHead = new THREE.Mesh(new THREE.ConeGeometry(0.02, 0.06, 8), matArc);
+  siteGroup.add(arcHead);
+
+  const label = makeTextSprite('θ' + toSubscript(n));
+  label.visible = physicsParams.show_labels;
+  siteGroup.add(label);
+  
+  chainGroup.add(siteGroup);
+  spinObjects.push({ spinPivot, arcLine, arcHead, label, axes, n });
 }
 
 function buildRingChain(nDimers) {
@@ -210,29 +329,14 @@ function buildRingChain(nDimers) {
     arcLength += D_INTER;
   }
 
-  const gAtom = new THREE.SphereGeometry(R_ATOM, 20, 20);
   siteAngles.forEach((angle, n) => {
-    const radial = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
-    const tangent = new THREE.Vector3(-Math.sin(angle), 0, Math.cos(angle));
-    const atomPos = radial.clone().multiplyScalar(ringRadius);
-
-    const m = new THREE.Mesh(gAtom, matAtom);
-    m.position.copy(atomPos);
-    chainGroup.add(m);
-
-    const pivot = new THREE.Group();
-    pivot.position.copy(atomPos);
-
-    // Base local: X radial, Y normal al plano, Z tangente a la cadena.
-    // Con esta base, rotar en Z hace girar el espin en el plano normal
-    // (radial-normal), perpendicular al eje local de la cadena.
-    const basis = new THREE.Matrix4().makeBasis(radial, WORLD_UP, tangent);
-    pivot.setRotationFromMatrix(basis);
-
-    const arrow = makeArrowAlongX();
-    pivot.add(arrow);
-    chainGroup.add(pivot);
-    spinObjects.push({ pivot, n });
+    const tangent = new THREE.Vector3(-Math.sin(angle), 0, Math.cos(angle)).normalize(); 
+    const normal = new THREE.Vector3(0, 1, 0); 
+    const inward = new THREE.Vector3(-Math.cos(angle), 0, -Math.sin(angle)).normalize(); 
+    const basis = new THREE.Matrix4().makeBasis(tangent, normal, inward);
+    
+    const atomPos = new THREE.Vector3(ringRadius * Math.cos(angle), 0, ringRadius * Math.sin(angle));
+    createNode(atomPos, basis, n);
   });
 
   for (let i = 0; i < siteAngles.length; i++) {
@@ -247,57 +351,39 @@ function buildRingChain(nDimers) {
     if (endArc <= startArc) continue;
 
     const points = [];
-    const segments = 12;
-    for (let s = 0; s <= segments; s++) {
-      const t = s / segments;
-      const a = startArc + t * (endArc - startArc);
+    for (let s = 0; s <= 12; s++) {
+      const a = startArc + (s / 12) * (endArc - startArc);
       points.push(new THREE.Vector3(ringRadius * Math.cos(a), 0, ringRadius * Math.sin(a)));
     }
-
     const bondPath = new THREE.CatmullRomCurve3(points);
-    const gBond = new THREE.TubeGeometry(bondPath, segments, 0.038, 8, false);
-    const mBond = new THREE.Mesh(gBond, matBond);
+    const mBond = new THREE.Mesh(new THREE.TubeGeometry(bondPath, 12, 0.038, 8, false), matBond);
     chainGroup.add(mBond);
   }
 }
 
 function buildLineChain(nDimers) {
   const positions = [];
-  let z = 0;
+  let x = 0;
   for (let d = 0; d < nDimers; d++) {
-    positions.push(z);
-    z += D_INTRA;
-    positions.push(z);
-    z += D_INTER;
+    positions.push(x); x += D_INTRA;
+    positions.push(x); x += D_INTER;
   }
 
-  const totalLen = z - D_INTER;
-  const zOffset = -totalLen / 2;
-  positions.forEach((_, i) => positions[i] += zOffset);
+  const totalLen = x - D_INTER;
+  const xOffset = -totalLen / 2;
+  positions.forEach((_, i) => positions[i] += xOffset);
 
-  const gAtom = new THREE.SphereGeometry(R_ATOM, 20, 20);
-  positions.forEach((posZ, n) => {
-    const m = new THREE.Mesh(gAtom, matAtom);
-    m.position.set(0, 0, posZ);
-    chainGroup.add(m);
-
-    const pivot = new THREE.Group();
-    pivot.position.set(0, 0, posZ);
-    const arrow = makeArrowAlongX();
-    pivot.add(arrow);
-    chainGroup.add(pivot);
-    spinObjects.push({ pivot, n });
+  positions.forEach((posX, n) => {
+    createNode(new THREE.Vector3(posX, 0, 0), null, n);
   });
 
   for (let i = 0; i < positions.length - 1; i++) {
-    const z0 = positions[i];
-    const z1 = positions[i + 1];
-    const len = (z1 - z0) - 1.8 * R_ATOM;
+    const x0 = positions[i], x1 = positions[i + 1];
+    const len = (x1 - x0) - 1.8 * R_ATOM;
     if (len <= 0) continue;
-    const gBond = new THREE.CylinderGeometry(0.038, 0.038, len, 9);
-    const mBond = new THREE.Mesh(gBond, matBond);
-    mBond.position.set(0, 0, (z0 + z1) / 2);
-    mBond.rotation.x = Math.PI / 2;
+    const mBond = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, len, 9), matBond);
+    mBond.position.set((x0 + x1) / 2, 0, 0);
+    mBond.rotation.z = Math.PI / 2; 
     chainGroup.add(mBond);
   }
 }
@@ -306,22 +392,60 @@ function buildChain() {
   clearChainGroup();
   const nDimers = Math.max(2, Math.floor(physicsParams.n_dimers));
   physicsParams.n_dimers = nDimers;
-
-  if (physicsParams.view_mode === VIEW_MODES.line) {
-    buildLineChain(nDimers);
-  } else {
-    buildRingChain(nDimers);
-  }
+  if (physicsParams.view_mode === VIEW_MODES.line) buildLineChain(nDimers);
+  else buildRingChain(nDimers);
 }
 
 function updateSpins() {
-  const { Q, gamma, alpha_ind, phi_ind } = physicsParams;
+  const { Q, gamma, alpha_ind, phi_ind, show_labels } = physicsParams;
+  
+  // Calcular el offset inicial para que el espín n=0 siempre esté alineado con Z (theta = 0)
+  const offsetTheta = (0 * Q) + (gamma * 1.0) + alpha_ind * Math.sin(phi_ind);
 
-  spinObjects.forEach((spin) => {
-    const n = spin.n;
+  spinObjects.forEach((spinObj) => {
+    const n = spinObj.n;
     const parity = (n % 2 === 0) ? 1.0 : -1.0;
-    const thetaSpin = (n * Q) + (gamma * parity) + alpha_ind * Math.sin(2.0 * Q * n + phi_ind);
-    spin.pivot.rotation.z = thetaSpin;
+    
+    // Calcular theta puro y restarle el offset del n=0
+    let rawTheta = (n * Q) + (gamma * parity) + alpha_ind * Math.sin(2.0 * Q * n + phi_ind);
+    let thetaSpin = rawTheta - offsetTheta;
+    
+    spinObj.spinPivot.rotation.x = -thetaSpin;
+
+    let displayTheta = thetaSpin % (2 * Math.PI);
+    if (displayTheta < 0) displayTheta += 2 * Math.PI;
+
+    if(show_labels) {
+      spinObj.arcLine.visible = true;
+      spinObj.arcHead.visible = true;
+      spinObj.label.visible = true;
+
+      const positions = spinObj.arcLine.geometry.attributes.position.array;
+      for(let i=0; i<=16; i++) {
+        const a = (i/16) * (-displayTheta);
+        const v = new THREE.Vector3(0, 0, R_ARC).applyAxisAngle(new THREE.Vector3(1, 0, 0), a);
+        positions[i*3] = v.x;
+        positions[i*3+1] = v.y;
+        positions[i*3+2] = v.z;
+      }
+      spinObj.arcLine.geometry.attributes.position.needsUpdate = true;
+
+      const endV = new THREE.Vector3(0, 0, R_ARC).applyAxisAngle(new THREE.Vector3(1, 0, 0), -displayTheta);
+      spinObj.arcHead.position.copy(endV);
+      
+      const delta = 0.01;
+      const endV2 = new THREE.Vector3(0, 0, R_ARC).applyAxisAngle(new THREE.Vector3(1, 0, 0), -displayTheta - delta);
+      const tangent = endV2.clone().sub(endV).normalize();
+      spinObj.arcHead.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tangent);
+
+      // Etiqueta perfectamente legible dentro del arco
+      const midV = new THREE.Vector3(0, 0, R_ARC * 0.55).applyAxisAngle(new THREE.Vector3(1, 0, 0), -displayTheta / 2);
+      spinObj.label.position.copy(midV);
+    } else {
+      spinObj.arcLine.visible = false;
+      spinObj.arcHead.visible = false;
+      spinObj.label.visible = false;
+    }
   });
 
   document.getElementById('dynamic-subtitle').innerHTML =
@@ -331,24 +455,28 @@ function updateSpins() {
 buildChain();
 updateSpins();
 
+// ─── GUI Controls ─────────────────────────────────────────────────────────────
 const gui = new dat.GUI({ width: 320 });
-gui.add(physicsParams, 'view_mode', [VIEW_MODES.ring, VIEW_MODES.line]).name('Visualizacion').onChange((mode) => {
+gui.add(physicsParams, 'view_mode', [VIEW_MODES.ring, VIEW_MODES.line]).name('Visualización').onChange((mode) => {
   radius = (mode === VIEW_MODES.line) ? 18 : 16;
   updateCamera();
   buildChain();
   updateSpins();
 });
-gui.add(physicsParams, 'n_dimers', 2, 80).step(1).name('Numero de dimeros (N_d)').onFinishChange(() => {
-  buildChain();
-  updateSpins();
-});
+gui.add(physicsParams, 'n_dimers', 2, 80).step(1).name('Número de dímeros (N_d)').onFinishChange(() => { buildChain(); updateSpins(); });
 gui.add(physicsParams, 'Q', 0, Math.PI).step(0.0001).name('Pitch (Q)').onChange(updateSpins);
-gui.add(physicsParams, 'gamma', -Math.PI, Math.PI).step(0.01).name('Dimerizacion (gamma)').onChange(updateSpins);
+gui.add(physicsParams, 'gamma', -Math.PI, Math.PI).step(0.01).name('Dimerización (gamma)').onChange(updateSpins);
 gui.add(physicsParams, 'alpha_ind', 0.0, 1.5).step(0.01).name('Bunching (alpha_ind)').onChange(updateSpins);
 gui.add(physicsParams, 'phi_ind', -Math.PI, Math.PI).step(0.01).name('Fase (phi_ind)').onChange(updateSpins);
-gui.add(physicsParams, 'autoRotate').name('Auto-rotacion');
 
-// ─── Orbit controls (manual implementation) ───────────────────────────────────
+const folderVis = gui.addFolder('Apoyo Visual');
+folderVis.add(physicsParams, 'show_axes').name('Mostrar ejes locales').onChange(v => spinObjects.forEach(s => s.axes.visible = v));
+folderVis.add(physicsParams, 'show_labels').name('Mostrar ángulos (θᵢ)').onChange(updateSpins);
+folderVis.open();
+
+gui.add(physicsParams, 'autoRotate').name('Auto-rotación');
+
+// ─── Camera & Mouse Controls ──────────────────────────────────────────────────
 let isDragging = false, lastX = 0, lastY = 0;
 let phi = Math.PI / 6, theta_cam = 0.3, radius = 16;
 
@@ -360,66 +488,29 @@ function updateCamera() {
 }
 updateCamera();
 
-renderer.domElement.addEventListener('mousedown', e => {
-  isDragging = true;
-  lastX = e.clientX;
-  lastY = e.clientY;
-  physicsParams.autoRotate = false;
-});
+renderer.domElement.addEventListener('mousedown', e => { isDragging = true; lastX = e.clientX; lastY = e.clientY; physicsParams.autoRotate = false; });
 renderer.domElement.addEventListener('mouseup',   () => isDragging = false);
 renderer.domElement.addEventListener('mousemove', e => {
   if (!isDragging) return;
-  const dx = (e.clientX - lastX) * 0.008;
-  const dy = (e.clientY - lastY) * 0.006;
-  theta_cam -= dx;
-  phi = Math.max(0.15, Math.min(Math.PI - 0.1, phi + dy));
-  lastX = e.clientX; lastY = e.clientY;
-  updateCamera();
+  theta_cam -= (e.clientX - lastX) * 0.008;
+  phi = Math.max(0.15, Math.min(Math.PI - 0.1, phi + (e.clientY - lastY) * 0.006));
+  lastX = e.clientX; lastY = e.clientY; updateCamera();
 });
 renderer.domElement.addEventListener('wheel', e => {
-  radius = Math.max(5, Math.min(35, radius + e.deltaY * 0.02));
-  updateCamera();
-  e.preventDefault();
+  radius = Math.max(5, Math.min(35, radius + e.deltaY * 0.02)); updateCamera(); e.preventDefault();
 }, { passive: false });
 
-// Touch
-renderer.domElement.addEventListener('touchstart', e => {
-  if (e.touches.length === 1) {
-    isDragging = true;
-    lastX = e.touches[0].clientX;
-    lastY = e.touches[0].clientY;
-    physicsParams.autoRotate = false;
-  }
-});
-renderer.domElement.addEventListener('touchend', () => isDragging = false);
-renderer.domElement.addEventListener('touchmove', e => {
-  if (!isDragging || e.touches.length !== 1) return;
-  const dx = (e.touches[0].clientX - lastX) * 0.008;
-  const dy = (e.touches[0].clientY - lastY) * 0.006;
-  theta_cam -= dx;
-  phi = Math.max(0.15, Math.min(Math.PI - 0.1, phi + dy));
-  lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
-  updateCamera();
-  e.preventDefault();
-}, { passive: false });
-
-// ─── Render loop ──────────────────────────────────────────────────────────────
 function animate() {
   requestAnimationFrame(animate);
-  if (physicsParams.autoRotate) {
-    theta_cam += 0.004;
-    updateCamera();
-  }
+  if (physicsParams.autoRotate) { theta_cam += 0.004; updateCamera(); }
   renderer.render(scene, camera);
 }
 animate();
 
-// ─── Resize ───────────────────────────────────────────────────────────────────
 window.addEventListener('resize', () => {
-  const w = window.innerWidth, h = window.innerHeight;
-  camera.aspect = w / h;
+  camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
-  renderer.setSize(w, h);
+  renderer.setSize(window.innerWidth, window.innerHeight);
 });
 </script>
 </body>

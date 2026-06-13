@@ -25,7 +25,7 @@ q_c = 2.0 * math.pi / 3.0
 
 DEFAULT_SETS = [
 	#("Set 1", 48.891035, 48.620365, 1.26126, 48.9119, 0.31,1198),
-    ("MoI3", 46.812805, 44.873295, 2.60139, 45.4866, 0.76, 1198),
+    ("MoI3", 46.812805, 44.873295, 2.60139, 45.4866, 0.76, 10000),
 	#("Set 3", 17.10185, 11.80055, 0.0085, 16.8117, 0.33, 1198),
 	#("Set 4", 17.10185, 1.80055, 8.5, 18.1212, 3.3, 1198),
 
@@ -33,8 +33,6 @@ DEFAULT_SETS = [
 PARAM_NAMES = (
     "mx",
     "gamma",
-    "beta_mq",
-    "phi_mq",
     "alpha_ind",
     "phi_ind",
 )
@@ -63,8 +61,6 @@ def theta_n(
     n: Iterable[int],
     q: float,
     gamma: float,
-    beta_mq: float,
-    phi_mq: float,
     alpha_ind: float,
     phi_ind: float,
 ) -> np.ndarray:
@@ -75,7 +71,6 @@ def theta_n(
     
     # Perfil base + Dimerización + Armónicos m*q y 2*m*q (Soliton Lattice extendido)
     profile = base + gamma * parity
-    profile += beta_mq * np.sin(4.0 * q * idx + phi_mq)
     profile += alpha_ind * np.sin(2.0 * q * idx + phi_ind)
     return profile
 
@@ -216,7 +211,7 @@ def e_min_vs_winding_modulated(
     D_plane: float, # Argumento añadido
     chain_length: int,
     M_values: Sequence[int] | np.ndarray | ArrayLike | None = None,
-    init_guess = np.array([0.0, -0.3, 0.0, 0.0, 0.0, 0.0]),
+    init_guess = np.array([0.0, -0.3, 0.0, 0.0]),
     bounds=DEFAULT_BOUNDS,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     
@@ -479,4 +474,4 @@ def analyze_sets_modulated(
 if __name__ == "__main__":
     # Prueba con un valor de anisotropía en el plano para activar el bunching
     # D_plane = 0.5 es un valor razonable para empezar a ver efectos fuertes.
-    analyze_sets_modulated(DEFAULT_SETS, D_plane_val=0.076)
+    analyze_sets_modulated(DEFAULT_SETS, D_plane_val=0.76 * 0.1)

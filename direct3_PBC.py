@@ -35,6 +35,8 @@ PARAM_NAMES = (
     "gamma",
     "alpha_ind",
     "phi_ind",
+    "beta_ind",  # NUEVO: Amplitud de deformación acoplada a la dimerización
+    "psi_ind",   # NUEVO: Fase del armónico dimerizado
 )
 MX_BOUNDS = (-0.999, 0.999)
 DEFAULT_BOUNDS = (MX_BOUNDS,) + tuple((-math.pi, math.pi) for _ in PARAM_NAMES[1:])
@@ -63,17 +65,22 @@ def theta_n(
     gamma: float,
     alpha_ind: float,
     phi_ind: float,
+    beta_ind: float,  # NUEVO
+    psi_ind: float,   # NUEVO
 ) -> np.ndarray:
     """Evalúa el perfil angular modulado."""
     idx = np.asarray(n, dtype=np.int64)
     base = idx * q
     parity = np.where((idx & 1) == 0, 1.0, -1.0)
     
-    # Perfil base + Dimerización + Armónicos m*q y 2*m*q (Soliton Lattice extendido)
+    # Perfil base + Dimerización estática
     profile = base + gamma * parity
+    # Deformación Inmensurable Continua (2q)
     profile += alpha_ind * np.sin(2.0 * q * idx + phi_ind)
+    # Deformación Acoplada a la Red (2q - pi)
+    profile += beta_ind * parity * np.sin(2.0 * q * idx + psi_ind)
+    
     return profile
-
 
 def _canting_weights(mx: float) -> Tuple[float, float]:
     mx_sq = mx * mx
@@ -196,10 +203,12 @@ def minimize_modulated_parameters(
     params_opt = np.asarray(res.x, dtype=float)
     # Normalizar fases
     for idx, name in enumerate(PARAM_NAMES):
-        if name.startswith("phi"):
+        if name.startswith("phi") or name.startswith("psi"):
             params_opt[idx] = _wrap_pi(params_opt[idx])
             
     return float(res.fun), params_opt, True
+            
+
 
 
 def e_min_vs_winding_modulated(
@@ -208,10 +217,11 @@ def e_min_vs_winding_modulated(
     J2: float,
     K: float,
     D_axis: float,
-    D_plane: float, # Argumento añadido
+    D_plane: float,
     chain_length: int,
     M_values: Sequence[int] | np.ndarray | ArrayLike | None = None,
-    init_guess = np.array([0.0, -0.3, 0.0, 0.0]),
+    # NUEVO: Valores semilla (0.001 y 0.002) para forzar al gradiente a descender
+    init_guess = np.array([0.0, -0.28, 0.001, -3.1415, 0.002, 0.0]), 
     bounds=DEFAULT_BOUNDS,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     
@@ -474,4 +484,4 @@ def analyze_sets_modulated(
 if __name__ == "__main__":
     # Prueba con un valor de anisotropía en el plano para activar el bunching
     # D_plane = 0.5 es un valor razonable para empezar a ver efectos fuertes.
-    analyze_sets_modulated(DEFAULT_SETS, D_plane_val=0.76 * 0.1)
+    analyze_sets_modulated(DEFAULT_SETS, D_plane_val=0.76 * 0.1 )

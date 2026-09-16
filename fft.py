@@ -38,7 +38,7 @@ APPLY_HANN = True
 USE_RFFT_TIME = True
 FREQ_MAX_THZ = 40.0  # THz (Aproximadamente equivalente a los antiguos 2.5e14 rad/s)
 SKIP = 1
-ANNOTATE_CELLS = False
+ANNOTATE_CELLS = True
 Q_INCOMM_INPUT = 1.0332116073
 SHOW_UMKLAPP_SATELLITES = False
 UMKLAPP_MAX_ORDER = 6          
@@ -63,7 +63,7 @@ def format_sci_tex(value, decimals=2):
 # 1. CONFIGURACIÓN Y CARGA DE DATOS
 # ===================================================================
 print("Cargando datos en RAM...")
-Spin_history = np.load('D_plane = 1.05D  fluc.npy')
+Spin_history = np.load('D_plane = 1.0D fluc.npy')
 
 num_pasos = Spin_history.shape[0]
 n_spins = Spin_history.shape[1]
@@ -135,6 +135,7 @@ def compute_power_lab_dimer_from_spin(
         _accumulate_for_sign(-1)
 
     return power
+
 
 def estimate_q_incomm_from_power(k_vals, power_kw):
     if k_vals.size < 3:

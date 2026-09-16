@@ -2,14 +2,40 @@ import numpy as np
 import matplotlib.pyplot as plt
 from typing import cast
 from mpl_toolkits.mplot3d import Axes3D
+# Configuración
+N_SITES = 1198 # O el tamaño que desees analizar
+
+# Interruptores de ejecución (True/False)
+RUN_THETA_DEFORMATION = True
+RUN_DELTA_THETA_FFT = False
+RUN_Q_DIMERIZED = False
+RUN_ELLIPTICIDAD = False
+RUN_LISSAJOUS_YZ = False
+RUN_BASAL_AUTOPSY = False
+RUN_STAGGERED_ORDER = False
+RUN_HYBRID_TILT = True
+RUN_BLOCH_3D = True
+
+# Comparación opcional con alpha del minimizador de direct3_PBC.
+# Reemplaza estos valores con los que importes de direct3_PBC.
+IMPORTED_ANSATZ_PARAMS = {
+    "q": 5.2514862797,        # Usando tu q_real más reciente (¡Ojo que antes decías 2.108!)
+    "phi": 0.0,
+    "gamma": 1.286581,
+    "alpha": 0.002230,
+    "phi_2q": -3.141587,      # Fase de alpha (phi_ind)
+    "beta": -0.004351,        # Nuevo parámetro beta
+    "psi_2q": -1.570795,      # Fase de beta (psi_ind)
+}
+
 
 # ==============================================================================
-# 1. TU FUNCIÓN DE CARGA (Tal cual la enviaste)
+# 0. TU FUNCIÓN DE CARGA (Tal cual la enviaste)
 # ==============================================================================
 def cadena0spinhistory(n):
     # Asegúrate de que este archivo esté en la misma carpeta o ajusta la ruta
     try:
-        Spin_history = np.load('D_plane = 0.1D relax.npy', mmap_mode='r')
+        Spin_history = np.load('D_plane = 1.0D relax.npy', mmap_mode='r')
     except FileNotFoundError:
         print("ERROR: No se encuentra el archivo .npy. Usando datos sintéticos para demo.")
         # Generar datos sintéticos si no hay archivo (SOLO PARA DEMOSTRACIÓN)
@@ -41,15 +67,14 @@ def cadena0spinhistory(n):
     return np.array(result)
 
 # ==============================================================================
+# 1. CARGA DE DATOS (Tal cual la enviaste)
+# ==============================================================================
+spins = cadena0spinhistory(N_SITES)
+
+
+# ==============================================================================
 # 2. RUTINA DE ANÁLISIS (AUTOPSIA DEL SOLITÓN)
 # ==============================================================================
-
-import numpy as np
-import matplotlib.pyplot as plt
-
-import numpy as np
-import matplotlib.pyplot as plt
-
 def plot_theta_deformation(spins, plane_indices=(1, 2), n_range=(0, 400), title_suffix="", ansatz_params=None):
     """Main pictorial representation of theta_n in real space with enhanced legibility."""
     n_sites = spins.shape[0]
@@ -63,13 +88,17 @@ def plot_theta_deformation(spins, plane_indices=(1, 2), n_range=(0, 400), title_
     staggered = (-1.0) ** idx
 
     if ansatz_params is None:
-        raise ValueError("Debes pasar ansatz_params con q, phi, gamma, alpha y phi_2q")
+        raise ValueError("Debes pasar ansatz_params con q, phi, gamma, alpha, phi_2q, beta y psi_2q")
 
     q_ans = float(ansatz_params["q"])
     phi_ans = float(ansatz_params["phi"])
     gamma_ans = float(ansatz_params["gamma"])
+    
+    # --- PARÁMETROS DEL ANSATZ (CONTINUO + DIMERIZADO) ---
     alpha_ansatz = float(ansatz_params["alpha"])
     phi_2q = float(ansatz_params["phi_2q"])
+    beta_ansatz = float(ansatz_params.get("beta", 0.0))
+    psi_2q = float(ansatz_params.get("psi_2q", 0.0))
 
     # Extracción directa desde LLG exacto
     A_llg = np.vstack([idx, np.ones(n_sites), staggered]).T
@@ -92,12 +121,15 @@ def plot_theta_deformation(spins, plane_indices=(1, 2), n_range=(0, 400), title_
     theta_linear_llg = q_llg_raw * idx + phi_llg
     theta_linear_llg_staggered = theta_linear_llg + gamma_llg * staggered
     
-    theta_harmonic = alpha_ansatz * np.sin(2.0 * q_ans * idx + phi_2q)
-    theta_model_harm_only = theta_linear_llg + theta_harmonic
+    # NUEVO: Ansatz completo con alfa y beta
+    theta_harmonic = (alpha_ansatz * np.sin(2.0 * q_ans * idx + phi_2q) + 
+                      beta_ansatz * staggered * np.sin(2.0 * q_ans * idx + psi_2q))
+    
+    # CORREGIDO: Se suma sobre la base dimerizada (staggered) para que encaje visualmente
+    theta_model_harm_only = theta_linear_llg_staggered + theta_harmonic
 
-    # Residuo limpio (Contenido Armónico)
+    # Residuo limpio (Contenido Armónico LLG real)
     delta_theta = theta_unwrapped - theta_linear_llg_staggered
-    alpha_fit = alpha_ansatz
 
     # ==========================================================================
     # GRÁFICO 1: FASE ESPACIAL
@@ -112,8 +144,8 @@ def plot_theta_deformation(spins, plane_indices=(1, 2), n_range=(0, 400), title_
         lw=1.5,
         ls="--",
         label=(
-            r"$\theta_n^{fit}=q_{LLG}n+\phi_{LLG}+\alpha_{Ans}\sin(2q_{Ans}n+\phi_{2q})$"
-            + f"\n$q_{{Ans}}$={q_ans:.5f}, $\\alpha_{{Ans}}$={alpha_ansatz:.5f}"
+            r"$\theta_n^{fit}=\theta_n^{(0)} + \alpha\sin(2qn+\phi_{2q}) + \beta(-1)^n\sin(2qn+\psi_{2q})$"
+            + f"\n$\\alpha$={alpha_ansatz:.5f}, $\\beta$={beta_ansatz:.5f}"
         ),
     )
     ax_theta.set_ylabel(r"$\theta_n$ [rad]", fontsize=16)
@@ -125,7 +157,6 @@ def plot_theta_deformation(spins, plane_indices=(1, 2), n_range=(0, 400), title_
     ax_theta.tick_params(axis='both', which='major', labelsize=14)
     ax_theta.grid(True, alpha=0.3)
     
-    # Leyenda forzada a la esquina superior derecha
     ax_theta.legend(fontsize=13, loc='upper right')
     ax_theta.set_xlim(n_range)
 
@@ -157,9 +188,8 @@ def plot_theta_deformation(spins, plane_indices=(1, 2), n_range=(0, 400), title_
     ax_res_top.tick_params(axis='y', labelsize=14)
     ax_res_top.grid(True, alpha=0.3)
     
-    # Ajuste dinámico inteligente para el panel superior
     ymin, ymax = ax_res_top.get_ylim()
-    ax_res_top.set_ylim(ymin, ymax + (ymax - ymin) * 0.45) # Agrega 45% de espacio arriba
+    ax_res_top.set_ylim(ymin, ymax + (ymax - ymin) * 0.45) 
     ax_res_top.legend(fontsize=13, loc='upper right')
 
     ax_res_bottom.plot(
@@ -169,8 +199,8 @@ def plot_theta_deformation(spins, plane_indices=(1, 2), n_range=(0, 400), title_
         lw=1.5,
         ls="--",
         label=(
-            r"Harmonic ansatz: $\alpha\sin(2qn+\phi_{2q})$"
-            + f"\n$q_{{Ans}}$={q_ans:.6f}, $\\alpha_{{Ans}}$={alpha_ansatz:.5f}"
+            r"Ansatz: $\alpha\sin(2qn+\phi_{2q}) + \beta(-1)^n\sin(2qn+\psi_{2q})$"
+            + f"\n$\\alpha$={alpha_ansatz:.5f}, $\\beta$={beta_ansatz:.5f}"
         ),
     )
     ax_res_bottom.axhline(0.0, color="black", ls="--", lw=1.0, alpha=0.5)
@@ -179,9 +209,8 @@ def plot_theta_deformation(spins, plane_indices=(1, 2), n_range=(0, 400), title_
     ax_res_bottom.tick_params(axis='both', which='major', labelsize=14)
     ax_res_bottom.grid(True, alpha=0.3)
     
-    # Ajuste dinámico inteligente para el panel inferior
     ymin, ymax = ax_res_bottom.get_ylim()
-    ax_res_bottom.set_ylim(ymin, ymax + (ymax - ymin) * 0.45) # Agrega 45% de espacio arriba
+    ax_res_bottom.set_ylim(ymin, ymax + (ymax - ymin) * 0.45) 
     ax_res_bottom.legend(fontsize=13, loc='upper right')
     ax_res_bottom.set_xlim(n_range)
 
@@ -190,74 +219,13 @@ def plot_theta_deformation(spins, plane_indices=(1, 2), n_range=(0, 400), title_
     fig_res.subplots_adjust(top=0.92) 
     plt.show()
 
-    # ==========================================================================
-    # GRÁFICO 3: ESPECTRO FFT
-    # ==========================================================================
-    delta_centered = delta_theta - np.mean(delta_theta)
-    fft_delta = np.fft.rfft(delta_centered)
-    k_delta = 2.0 * np.pi * np.fft.rfftfreq(n_sites)
-    mag_delta = np.abs(fft_delta) / n_sites
+    # Retorno añadido para evitar errores de desempaquetado en la ejecución
+    return q_llg_raw, gamma_llg, alpha_ansatz, beta_ansatz, phi_2q, psi_2q, theta_unwrapped, delta_theta
 
-    fig, ax_spec = plt.subplots(1, 1, figsize=(11, 5))
-
-    mask = (k_delta > 0) & (k_delta <= np.pi)
-    ax_spec.plot(k_delta[mask], mag_delta[mask], color="tab:blue", lw=2.0, label=r"FFT of $\delta\theta_n$")
-    ax_spec.set_yscale("log")
-    ax_spec.set_xlabel(r"$k$ [rad/site]", fontsize=16)
-    ax_spec.set_ylabel(r"$|\delta\theta(k)|$", fontsize=16)
-    ax_spec.set_title(r"FFT Spectrum of $\delta\theta_n$ (Harmonic Content)", fontsize=18, fontweight='bold', pad=15)
-    ax_spec.tick_params(axis='both', which='major', labelsize=14)
-    ax_spec.grid(True, which="both", alpha=0.3)
-
-    def fold_k(k_val):
-        """Pliega cualquier k a la primera zona de Brillouin visible [0, pi]"""
-        k_w = k_val % (2.0 * np.pi)
-        return 2.0 * np.pi - k_w if k_w > np.pi else k_w
-
-    k_2q = fold_k(2.0 * q_ans)
-    k_dimer = fold_k(2.0 * q_ans - np.pi)
-
-    ax_spec.axvline(k_2q, color="tab:red", linestyle="--", alpha=0.8, lw=1.5,
-                    label=r"$2q$ Harmonic (Folded $\approx$ " + f"{k_2q:.3f})")
-    ax_spec.axvline(k_dimer, color="tab:green", linestyle="--", alpha=0.8, lw=1.5,
-                    label=r"$2q - \pi$ Interaction (Folded $\approx$ " + f"{k_dimer:.3f})")
-
-    # Leyenda forzada a la esquina superior derecha
-    ax_spec.legend(fontsize=13, loc='upper right')
-
-    plt.tight_layout()
-    plt.show()
-
-    return q_llg_raw, gamma_llg, alpha_fit, phi_2q, theta_unwrapped, delta_theta
-# Configuración
-N_SITES = 1198 # O el tamaño que desees analizar
-
-# Interruptores de ejecución (True/False)
-RUN_THETA_DEFORMATION = True
-RUN_DELTA_THETA_FFT = False
-RUN_Q_DIMERIZED = False
-RUN_ELLIPTICIDAD = False
-RUN_LISSAJOUS_YZ = False
-RUN_BASAL_AUTOPSY = False
-RUN_STAGGERED_ORDER = False
-RUN_HYBRID_TILT = False
-RUN_BLOCH_3D = False
-
-# Comparación opcional con alpha del minimizador de direct3_PBC.
-# Reemplaza estos valores con los que importes de direct3_PBC.
-IMPORTED_ANSATZ_PARAMS = {
-    "q": 2.1083810463,
-    "phi": 0.0,
-    "gamma": 2.857791,
-    "alpha": 0.00358,
-    "phi_2q": 0.0,
-}
-
-spins = cadena0spinhistory(N_SITES)
 
 # Método principal recomendado para representar theta_n en la narrativa del manuscrito.
 if RUN_THETA_DEFORMATION:
-    q_fit_main, gamma_main, alpha_main, phi2q_main, theta_unwrap_main, dtheta_res_main = plot_theta_deformation(
+    q_fit_main, gamma_main, alpha_main, beta_main, phi2q_main, psi2q_main, theta_unwrap_main, dtheta_res_main = plot_theta_deformation(
         spins,
         plane_indices=(1, 2),
         n_range=(0, 300),
@@ -624,3 +592,91 @@ def plot_esfera_bloch_3d(spins, n_limit=300):
 if RUN_BLOCH_3D:
     # Ejecutar
     plot_esfera_bloch_3d(spins, n_limit=400)
+
+# ==============================================================================
+# 7. ESTIMADOR MULTI-ARMÓNICO ESPACIAL (BUNCHING & INTERACCIÓN DE RED)
+# ==============================================================================
+def estimate_multiple_harmonics(spins, plane_indices=(1, 2), max_harmonics=10):
+    """
+    Extrae la deformación de la fase (delta_theta) y calcula matemáticamente 
+    la amplitud pura (alpha_m, en 2mQ) y la amplitud dimerizada (beta_m, en 2mQ - pi).
+    """
+    Q_slope, gamma_stagger, _, theta_unwrapped, theta_pred = estimate_Q_dimerized(spins, plane_indices)
+    delta_theta = theta_unwrapped - theta_pred
+    
+    n_points = len(theta_unwrapped)
+    x = np.arange(n_points)
+    staggered = (-1)**x  # Equivalente a e^{i*pi*x}, traslada la frecuencia en pi
+    
+    # Construir Matriz de Diseño para Mínimos Cuadrados
+    basis_funcs = []
+    for m in range(1, max_harmonics + 1):
+        arg = 2 * m * Q_slope * x
+        
+        # 1. Base continua (2mQ)
+        basis_funcs.append(np.sin(arg))
+        basis_funcs.append(np.cos(arg))
+        
+        # 2. Base acoplada a la red / dimerizada (2mQ ± pi)
+        basis_funcs.append(staggered * np.sin(arg))
+        basis_funcs.append(staggered * np.cos(arg))
+        
+    A_mat = np.column_stack(basis_funcs)
+    c_harm, _, _, _ = np.linalg.lstsq(A_mat, delta_theta, rcond=None)
+    
+    harmonics_data = []
+    for m in range(1, max_harmonics + 1):
+        idx = 4 * (m - 1)
+        
+        # Amplitud de la deformación inmensurable pura
+        A_reg, B_reg = c_harm[idx], c_harm[idx+1]
+        alpha_m = np.sqrt(A_reg**2 + B_reg**2)
+        phi_m = np.arctan2(B_reg, A_reg)
+        
+        # Amplitud de la deformación anclada a la celda (Umklapp local)
+        A_stag, B_stag = c_harm[idx+2], c_harm[idx+3]
+        beta_m = np.sqrt(A_stag**2 + B_stag**2)
+        psi_m = np.arctan2(B_stag, A_stag)
+        
+        harmonics_data.append({
+            "m": m,
+            "alpha": alpha_m, "phi": phi_m,
+            "beta": beta_m, "psi": psi_m
+        })
+        
+    return harmonics_data, delta_theta, Q_slope, gamma_stagger
+
+# --- Interruptor de ejecución ---
+RUN_HARMONIC_ESTIMATOR = True
+
+if RUN_HARMONIC_ESTIMATOR:
+    harmonics, d_theta, q_est, gamma_est = estimate_multiple_harmonics(spins, max_harmonics=10)
+    
+    print("\n" + "="*80)
+    print("ESTIMACIÓN MULTI-ARMÓNICA (MODULACIÓN CONTINUA VS DISCRETA)")
+    print("="*80)
+    print(f"Vector Q base             : {q_est:.6f} rad/sitio")
+    print(f"Dimerización (gamma)      : {gamma_est:.6f} rad")
+    print("-" * 80)
+    print(f"{'Orden':<7} | {'Amplitud Pura 2mQ (α)':<25} | {'Amplitud Dimerizada 2mQ-π (β)':<25}")
+    print("-" * 80)
+    
+    for h in harmonics:
+        marker = "->" if h['m'] == 1 else "  "
+        print(f"{marker} m={h['m']:<2} | {h['alpha']:.6f} rad                 | {h['beta']:.6f} rad")
+    print("="*80)
+    
+    if 'IMPORTED_ANSATZ_PARAMS' in globals():
+        alpha_1 = harmonics[0]['alpha']
+        beta_1 = harmonics[0]['beta']
+        ansatz_alpha = IMPORTED_ANSATZ_PARAMS['alpha']
+        
+        # Volumen RMS total combinando las dos componentes dominantes
+        volumen_real = np.sqrt(alpha_1**2 + beta_1**2)
+        
+        print(f"Amplitud 2q (Abre el gap en LSWT) : {alpha_1:.6f} rad")
+        print(f"Amplitud 2q-pi (Fuga a la red)    : {beta_1:.6f} rad")
+        print(f"Volumen de Deformación Real (RMS) : {volumen_real:.6f} rad")
+        print(f"Alpha Teórico Forzado (Ansatz)    : {ansatz_alpha:.6f} rad")
+        print(f"Discrepancia Volumen-Ansatz       : {abs(volumen_real - ansatz_alpha):.6e}")
+    print("="*80)

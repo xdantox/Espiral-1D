@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Ondas de Espín (Magnones) en Hélice 1D Inconmensurada</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #ffffff; font-family: 'Georgia', serif; overflow: hidden; }
+  #container { width: 100vw; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #ffffff; }
+  canvas { display: block; }
+
+  #labels {
+    position: absolute;
+    top: 16px; left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    pointer-events: none;
+    z-index: 10;
+    width: 90%;
+  }
+  #labels h1 {
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    color: #0f172a;
+  }
+  #labels p {
+    font-size: 11.5px;
+    color: #475569;
+    margin-top: 3px;
+    line-height: 1.35;
+  }
+  .highlight-tag {
+    display: inline-block;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #b91c1c;
+    font-weight: bold;
+    padding: 1px 7px;
+    border-radius: 4px;
+    font-size: 10.5px;
+    margin-top: 3px;
+  }
+
+  #legend {
+    position: absolute;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 18px;
+    pointer-events: none;
+    z-index: 10;
+    width: 90%;
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(4px);
+    padding: 6px 14px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+  }
+  .leg-item {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 11px; color: #334155;
+  }
+  .leg-sph { width: 12px; height: 12px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #cbd5e1, #64748b); }
+  .leg-bond { width: 20px; height: 4px; background: #94a3b8; border-radius: 2px; }
+  
+  .leg-arr-dyn {
+    width: 20px; height: 3px; background: #dc2626; position: relative;
+  }
+  .leg-arr-dyn::after {
+    content: ''; position: absolute; right: -1px; top: -3.5px;
+    border-left: 7px solid #dc2626; border-top: 4px solid transparent; border-bottom: 4px solid transparent;
+  }
+  
+  .leg-arr-base {
+    width: 20px; height: 2px; background: #94a3b8; position: relative;
+  }
+  .leg-arr-base::after {
+    content: ''; position: absolute; right: -1px; top: -3px;
+    border-left: 6px solid #94a3b8; border-top: 3.5px solid transparent; border-bottom: 3.5px solid transparent;
+  }
+
+  .leg-orbit { width: 12px; height: 12px; border: 1.5px dashed #38bdf8; border-radius: 50%; }
+
+  .leg-axis-u { width: 16px; height: 2px; background: #2563eb; position: relative; }
+  .leg-axis-u::after { content: ''; position: absolute; right: -2px; top: -2.5px; border-left: 5px solid #2563eb; border-top: 3px solid transparent; border-bottom: 3px solid transparent; }
+  
+  .leg-axis-v { width: 16px; height: 2px; background: #16a34a; position: relative; }
+  .leg-axis-v::after { content: ''; position: absolute; right: -2px; top: -2.5px; border-left: 5px solid #16a34a; border-top: 3px solid transparent; border-bottom: 3px solid transparent; }
+
+  #controls {
+    position: absolute;
+    bottom: 20px; right: 20px;
+    font-size: 10px; color: #94a3b8;
+    text-align: right;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .dg.ac { z-index: 20 !important; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.9/dat.gui.min.js"></script>
+</head>
+<body>
+<div id="container">
+  <div id="labels">
+    <h1>Onda de Espín (Magnón) en Hélice 1D Inconmensurada</h1>
+    <p id="dynamic-subtitle">Precesión transversal en el marco local rotante $(u_n, v_n)$ alrededor del estado base $\mathbf{w}_n$</p>
+    <div class="highlight-tag">Amplitud de fluctuación magnificada $\sim 10^4\times$ (Régimen lineal LSWT/LLG: $\sigma = 10^{-5}$)</div>
+  </div>
+
+  <div id="legend">
+    <div class="leg-item"><div class="leg-sph"></div><span>Átomo</span></div>
+    <div class="leg-item"><div class="leg-bond"></div><span>Enlace</span></div>
+    <div class="leg-item"><div class="leg-arr-dyn"></div><span>Espín dinámico $\mathbf{S}_n(t)$</span></div>
+    <div class="leg-item"><div class="leg-arr-base"></div><span>Estado base $\mathbf{S}_n^{(0)}$</span></div>
+    <div class="leg-item"><div class="leg-orbit"></div><span>Órbita de precesión</span></div>
+    <div class="leg-item"><div class="leg-axis-u"></div><span>$\hat{u}$ (Eje duro / Out-of-plane)</span></div>
+    <div class="leg-item"><div class="leg-axis-v"></div><span>$\hat{v}$ (In-plane)</span></div>
+  </div>
+
+  <div id="controls">Arrastrar: rotar vista &nbsp;|&nbsp; Rueda: zoom</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ─── Scene Setup ─────────────────────────────────────────────────────────────
+const container = document.getElementById('container');
+const W = window.innerWidth, H = window.innerHeight;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(W, H);
+renderer.setClearColor(0xffffff, 1);
+renderer.shadowMap.enabled = true;
+container.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xffffff);
+
+const camera = new THREE.PerspectiveCamera(28, W / H, 0.01, 200);
+camera.position.set(0, 6, 17);
+camera.lookAt(0, 0, 0);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.60));
+const key = new THREE.DirectionalLight(0xffffff, 1.0);
+key.position.set(6, 10, 8);
+scene.add(key);
+const fill = new THREE.DirectionalLight(0xdbeafe, 0.45);
+fill.position.set(-6, 4, -4);
+scene.add(fill);
+const rim = new THREE.DirectionalLight(0xffedd5, 0.35);
+rim.position.set(0, -6, -8);
+scene.add(rim);
+
+// ─── Model Parameters ────────────────────────────────────────────────────────
+const INITIAL_DIMERS = 20;
+const D_INTRA     = 0.42;   
+const D_INTER     = 0.72;   
+const R_ATOM      = 0.13;
+const SPIN_LEN    = 0.60;
+const HEAD_L      = 0.16;
+const HEAD_R      = 0.065;
+
+const physicsParams = {
+  // Configuración de la Red
+  n_dimers: INITIAL_DIMERS,
+  view_mode: 'Cadena lineal',
+  Q: 2.11031,             // Pitch helicoidal incommensurado
+  gamma: -0.28,           // Modulación por dimerización
+  
+  // Parámetros de la Onda de Espín (LSWT)
+  k_magnon: 0.785,        // Momento de la onda de espín (rad)
+  amplitude: 0.28,        // Amplitud transversal (exagerada ~10^4)
+  omega_speed: 1.8,       // Frecuencia temporal
+  branch: 'Acústica',     // 'Acústica' o 'Óptica'
+  ellipticity: 0.55,      // Ratio u/v (refleja la anisotropía de eje duro D)
+  
+  // Opciones Visuales
+  show_ground_state: true,
+  show_orbits: true,
+  show_axes: true,
+  autoRotate: false
+};
+
+const VIEW_MODES = { line: 'Cadena lineal', ring: 'PBC anillo' };
+const BRANCH_MODES = { acoustic: 'Acústica', optical: 'Óptica' };
+
+// Materiales
+const matAtom = new THREE.MeshPhongMaterial({ color: 0xb4bfce, specular: 0x888ea8, shininess: 110 });
+const matBond = new THREE.MeshPhongMaterial({ color: 0x94a3b8, specular: 0x555560, shininess: 60 });
+const matDynArrow = new THREE.MeshPhongMaterial({ color: 0xdc2626, specular: 0xff8888, shininess: 100, emissive: 0x3b0707 });
+const matBaseArrow = new THREE.MeshPhongMaterial({ color: 0x94a3b8, transparent: true, opacity: 0.38 });
+const matOrbitLine = new THREE.LineDashedMaterial({ color: 0x0284c7, dashSize: 0.04, gapSize: 0.03, linewidth: 1.5, transparent: true, opacity: 0.75 });
+
+// ─── Element Generators ──────────────────────────────────────────────────────
+function makeArrow(material, scaleLen = 1.0) {
+  const group = new THREE.Group();
+  const len = SPIN_LEN * scaleLen;
+  const headL = HEAD_L * scaleLen;
+  const shaftLen = len - headL;
+  
+  const mShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, shaftLen, 10), material);
+  mShaft.position.set(0, shaftLen / 2, 0);
+  group.add(mShaft);
+
+  const mHead = new THREE.Mesh(new THREE.ConeGeometry(HEAD_R * scaleLen, headL, 12), material);
+  mHead.position.set(0, shaftLen + headL / 2, 0);
+  group.add(mHead);
+  
+  return group;
+}
+
+function makeAxisArrow(colorHex, length, labelText) {
+  const group = new THREE.Group();
+  const mat = new THREE.MeshPhongMaterial({ color: colorHex, emissive: colorHex, emissiveIntensity: 0.2, transparent: true, opacity: 0.7 });
+  const headL = 0.05, shaftLen = length - headL;
+
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, shaftLen, 8), mat);
+  shaft.position.y = shaftLen / 2;
+  group.add(shaft);
+
+  const head = new THREE.Mesh(new THREE.ConeGeometry(0.02, headL, 8), mat);
+  head.position.y = shaftLen + headL / 2;
+  group.add(head);
+
+  return group;
+}
+
+function makeLocalAxes() {
+  const group = new THREE.Group();
+  const len = SPIN_LEN * 0.75;
+  
+  // u (Hard axis, along chain X)
+  const axisU = makeAxisArrow(0x2563eb, len, "u");
+  axisU.rotation.z = -Math.PI / 2;
+  group.add(axisU);
+  
+  // v (In-plane easy axis, along local Y)
+  const axisV = makeAxisArrow(0x16a34a, len, "v");
+  group.add(axisV);
+  
+  return group;
+}
+
+function makePrecessionEllipse() {
+  const points = [];
+  const segments = 36;
+  for (let i = 0; i <= segments; i++) {
+    const phi = (i / segments) * 2 * Math.PI;
+    points.push(new THREE.Vector3(Math.cos(phi), 0, Math.sin(phi)));
+  }
+  const geo = new THREE.BufferGeometry().setFromPoints(points);
+  const line = new THREE.Line(geo, matOrbitLine);
+  line.computeLineDistances();
+  return line;
+}
+
+// ─── Chain Construction ──────────────────────────────────────────────────────
+const chainGroup = new THREE.Group();
+scene.add(chainGroup);
+const spinNodes = [];
+
+function clearChain() {
+  chainGroup.traverse((obj) => { if (obj.geometry) obj.geometry.dispose(); });
+  while (chainGroup.children.length > 0) chainGroup.remove(chainGroup.children[0]);
+  spinNodes.length = 0;
+}
+
+function createSite(pos, basis, n) {
+  const siteGroup = new THREE.Group();
+  siteGroup.position.copy(pos);
+  if (basis) siteGroup.setRotationFromMatrix(basis);
+  
+  const mAtom = new THREE.Mesh(new THREE.SphereGeometry(R_ATOM, 18, 18), matAtom);
+  siteGroup.add(mAtom);
+
+  const localAxes = makeLocalAxes();
+  localAxes.visible = physicsParams.show_axes;
+  siteGroup.add(localAxes);
+
+  // Espín estático de fondo (Estado base S0)
+  const baseArrow = makeArrow(matBaseArrow, 0.98);
+  baseArrow.visible = physicsParams.show_ground_state;
+  siteGroup.add(baseArrow);
+
+  // Espín dinámico con la onda de espín (Magnón)
+  const dynArrow = makeArrow(matDynArrow, 1.0);
+  siteGroup.add(dynArrow);
+
+  // Órbita de precesión elíptica
+  const orbitMesh = makePrecessionEllipse();
+  orbitMesh.visible = physicsParams.show_orbits;
+  siteGroup.add(orbitMesh);
+
+  chainGroup.add(siteGroup);
+  spinNodes.push({ siteGroup, dynArrow, baseArrow, orbitMesh, localAxes, n });
+}
+
+function buildLineChain(nDimers) {
+  const positions = [];
+  let x = 0;
+  for (let d = 0; d < nDimers; d++) {
+    positions.push(x); x += D_INTRA;
+    positions.push(x); x += D_INTER;
+  }
+  const totalLen = x - D_INTER;
+  const xOffset = -totalLen / 2;
+  positions.forEach((_, i) => positions[i] += xOffset);
+
+  positions.forEach((posX, n) => {
+    createSite(new THREE.Vector3(posX, 0, 0), null, n);
+  });
+
+  for (let i = 0; i < positions.length - 1; i++) {
+    const x0 = positions[i], x1 = positions[i + 1];
+    const len = (x1 - x0) - 1.8 * R_ATOM;
+    if (len <= 0) continue;
+    const mBond = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, len, 8), matBond);
+    mBond.position.set((x0 + x1) / 2, 0, 0);
+    mBond.rotation.z = Math.PI / 2;
+    chainGroup.add(mBond);
+  }
+}
+
+function buildRingChain(nDimers) {
+  const siteAngles = [];
+  let arcLength = 0;
+  const cellLength = D_INTRA + D_INTER;
+  const totalLength = nDimers * cellLength;
+  const ringRadius = totalLength / (2 * Math.PI);
+
+  for (let d = 0; d < nDimers; d++) {
+    siteAngles.push((arcLength / totalLength) * 2 * Math.PI);
+    arcLength += D_INTRA;
+    siteAngles.push((arcLength / totalLength) * 2 * Math.PI);
+    arcLength += D_INTER;
+  }
+
+  siteAngles.forEach((angle, n) => {
+    const tangent = new THREE.Vector3(-Math.sin(angle), 0, Math.cos(angle)).normalize(); 
+    const normal  = new THREE.Vector3(0, 1, 0); 
+    const inward  = new THREE.Vector3(-Math.cos(angle), 0, -Math.sin(angle)).normalize(); 
+    const basis   = new THREE.Matrix4().makeBasis(tangent, normal, inward);
+    const atomPos = new THREE.Vector3(ringRadius * Math.cos(angle), 0, ringRadius * Math.sin(angle));
+    createSite(atomPos, basis, n);
+  });
+
+  for (let i = 0; i < siteAngles.length; i++) {
+    const j = (i + 1) % siteAngles.length;
+    const a0 = siteAngles[i];
+    let a1 = siteAngles[j];
+    if (j === 0) a1 += 2 * Math.PI;
+
+    const angleGap = (R_ATOM / ringRadius) * 0.9;
+    const startArc = a0 + angleGap;
+    const endArc   = a1 - angleGap;
+    if (endArc <= startArc) continue;
+
+    const points = [];
+    for (let s = 0; s <= 12; s++) {
+      const a = startArc + (s / 12) * (endArc - startArc);
+      points.push(new THREE.Vector3(ringRadius * Math.cos(a), 0, ringRadius * Math.sin(a)));
+    }
+    const bondPath = new THREE.CatmullRomCurve3(points);
+    const mBond = new THREE.Mesh(new THREE.TubeGeometry(bondPath, 12, 0.035, 8, false), matBond);
+    chainGroup.add(mBond);
+  }
+}
+
+function rebuildChain() {
+  clearChain();
+  const nDimers = Math.max(2, Math.floor(physicsParams.n_dimers));
+  physicsParams.n_dimers = nDimers;
+  if (physicsParams.view_mode === VIEW_MODES.line) buildLineChain(nDimers);
+  else buildRingChain(nDimers);
+}
+
+// ─── Dynamic Spin Wave Solver (LSWT Frame) ───────────────────────────────────
+let simTime = 0;
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
+
+function updateMagnonPhysics(delta) {
+  simTime += delta * physicsParams.omega_speed;
+  
+  const { Q, gamma, k_magnon, amplitude, branch, ellipticity } = physicsParams;
+  const isOptical = (branch === BRANCH_MODES.optical);
+  const eta_u = amplitude * ellipticity;  // Fluctuación en eje duro u (out-of-plane)
+  const eta_v = amplitude;                // Fluctuación en plano fácil v (in-plane)
+
+  spinNodes.forEach((node) => {
+    const n = node.n;
+    const parity = (n % 2 === 0) ? 1.0 : -1.0;
+    
+    // 1. Ángulo azimutal del estado base en el plano transversal Y-Z
+    const theta0 = n * Q + gamma * parity;
+    
+    // Tríada ortonormal del marco rotante local (w0 = dirección de equilibrio)
+    // u = (1, 0, 0) a lo largo de la cadena (hard axis)
+    // v = (0, -sin(theta0), cos(theta0)) en el plano transversal
+    // w0 = (0, cos(theta0), sin(theta0)) vector base
+    const cosT = Math.cos(theta0);
+    const sinT = Math.sin(theta0);
+    
+    const u_dir = new THREE.Vector3(1, 0, 0);
+    const v_dir = new THREE.Vector3(0, -sinT, cosT);
+    const w0_dir = new THREE.Vector3(0, cosT, sinT);
+
+    // 2. Estado base de referencia
+    node.baseArrow.quaternion.setFromUnitVectors(Y_AXIS, w0_dir);
+
+    // 3. Fase de la onda de espín: Phi = k*n - omega*t (+ pi para modo óptico en subred B)
+    let phase = k_magnon * n - simTime;
+    if (isOptical && n % 2 !== 0) phase += Math.PI;
+
+    // 4. Fluctuaciones canónicas lineales (LSWT)
+    const u_fluc = eta_u * Math.cos(phase);
+    const v_fluc = eta_v * Math.sin(phase);
+
+    // 5. Reconstrucción con norma unitaria estricta: |S| = 1
+    const w_fluc = Math.sqrt(Math.max(0.001, 1.0 - (u_fluc * u_fluc + v_fluc * v_fluc)));
+    
+    const s_dyn = new THREE.Vector3()
+      .addScaledVector(u_dir, u_fluc)
+      .addScaledVector(v_dir, v_fluc)
+      .addScaledVector(w0_dir, w_fluc)
+      .normalize();
+
+    node.dynArrow.quaternion.setFromUnitVectors(Y_AXIS, s_dyn);
+
+    // 6. Actualización del cono/órbita elíptica de precesión
+    if (physicsParams.show_orbits) {
+      const posArray = node.orbitMesh.geometry.attributes.position.array;
+      const segments = 36;
+      for (let i = 0; i <= segments; i++) {
+        const phi = (i / segments) * 2 * Math.PI;
+        const u_orb = eta_u * Math.cos(phi);
+        const v_orb = eta_v * Math.sin(phi);
+        const w_orb = Math.sqrt(Math.max(0.001, 1.0 - (u_orb * u_orb + v_orb * v_orb)));
+        
+        const pt = new THREE.Vector3()
+          .addScaledVector(u_dir, u_orb * SPIN_LEN)
+          .addScaledVector(v_dir, v_orb * SPIN_LEN)
+          .addScaledVector(w0_dir, w_orb * SPIN_LEN);
+          
+        posArray[i * 3]     = pt.x;
+        posArray[i * 3 + 1] = pt.y;
+        posArray[i * 3 + 2] = pt.z;
+      }
+      node.orbitMesh.geometry.attributes.position.needsUpdate = true;
+      node.orbitMesh.geometry.computeBoundingSphere();
+    }
+  });
+}
+
+// ─── GUI Controls ─────────────────────────────────────────────────────────────
+const gui = new dat.GUI({ width: 330 });
+
+const fMagnon = gui.addFolder('Onda de Espín (LSWT)');
+fMagnon.add(physicsParams, 'k_magnon', -Math.PI, Math.PI).step(0.001).name('Momento (k) [rad]').listen();
+fMagnon.add(physicsParams, 'amplitude', 0.0, 0.45).step(0.01).name('Amplitud δS (Exagerada)');
+fMagnon.add(physicsParams, 'omega_speed', 0.0, 5.0).step(0.1).name('Frecuencia (ω)');
+fMagnon.add(physicsParams, 'branch', [BRANCH_MODES.acoustic, BRANCH_MODES.optical]).name('Rama magnónica');
+fMagnon.add(physicsParams, 'ellipticity', 0.2, 1.0).step(0.05).name('Elipticidad (u / v)');
+fMagnon.open();
+
+const fHelix = gui.addFolder('Hélice Estado Base');
+fHelix.add(physicsParams, 'Q', 0.0, Math.PI).step(0.0001).name('Pitch fundamental (Q)');
+fHelix.add(physicsParams, 'gamma', -Math.PI/2, Math.PI/2).step(0.01).name('Dimerización (γ)');
+fHelix.add(physicsParams, 'n_dimers', 4, 50).step(1).name('Número de dímeros').onFinishChange(rebuildChain);
+fHelix.add(physicsParams, 'view_mode', [VIEW_MODES.line, VIEW_MODES.ring]).name('Geometría').onChange((mode) => {
+  radius = (mode === VIEW_MODES.line) ? 17 : 15;
+  updateCamera();
+  rebuildChain();
+});
+
+const fVisual = gui.addFolder('Apoyo Visual');
+fVisual.add(physicsParams, 'show_ground_state').name('Ver estado base S₀').onChange(v => spinNodes.forEach(s => s.baseArrow.visible = v));
+fVisual.add(physicsParams, 'show_orbits').name('Ver órbitas precesión').onChange(v => spinNodes.forEach(s => s.orbitMesh.visible = v));
+fVisual.add(physicsParams, 'show_axes').name('Ver marco local (u, v)').onChange(v => spinNodes.forEach(s => s.localAxes.visible = v));
+fVisual.add(physicsParams, 'autoRotate').name('Auto-rotación cámara');
+fVisual.open();
+
+// ─── Camera & Interaction ────────────────────────────────────────────────────
+let isDragging = false, lastX = 0, lastY = 0;
+let phi = Math.PI / 5.5, theta_cam = 0.25, radius = 17;
+
+function updateCamera() {
+  camera.position.x = radius * Math.sin(phi) * Math.sin(theta_cam);
+  camera.position.y = radius * Math.cos(phi);
+  camera.position.z = radius * Math.sin(phi) * Math.cos(theta_cam);
+  camera.lookAt(0, 0, 0);
+}
+updateCamera();
+
+renderer.domElement.addEventListener('mousedown', e => { isDragging = true; lastX = e.clientX; lastY = e.clientY; physicsParams.autoRotate = false; });
+renderer.domElement.addEventListener('mouseup',   () => isDragging = false);
+renderer.domElement.addEventListener('mousemove', e => {
+  if (!isDragging) return;
+  theta_cam -= (e.clientX - lastX) * 0.008;
+  phi = Math.max(0.12, Math.min(Math.PI - 0.12, phi + (e.clientY - lastY) * 0.006));
+  lastX = e.clientX; lastY = e.clientY; updateCamera();
+});
+renderer.domElement.addEventListener('wheel', e => {
+  radius = Math.max(4, Math.min(35, radius + e.deltaY * 0.02)); updateCamera(); e.preventDefault();
+}, { passive: false });
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ─── Main Animation Loop ─────────────────────────────────────────────────────
+rebuildChain();
+let lastTimestamp = performance.now();
+
+function animate(timestamp) {
+  requestAnimationFrame(animate);
+  const delta = Math.min((timestamp - lastTimestamp) / 1000, 0.1);
+  lastTimestamp = timestamp;
+
+  updateMagnonPhysics(delta);
+
+  if (physicsParams.autoRotate) {
+    theta_cam += 0.003;
+    updateCamera();
+  }
+
+  renderer.render(scene, camera);
+}
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>

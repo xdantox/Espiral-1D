@@ -73,7 +73,7 @@ def get_branch_gap_at_k(k_phys, f_split, f_window=(13.0, 15.5), N_max=6):
 def find_theoretical_minigap(
     k_expected=-0.493, k_tolerance=0.06, 
     f_split=14.4, f_search_range=(13.2, 15.4), 
-    N_max=6, n_k_points=140, plot_bands=True
+    N_max=6, n_k_points=1400, plot_bands=True
 ):
     """
     Rastrea el anticruce minimizando la distancia entre las dos ramas
@@ -195,10 +195,10 @@ if __name__ == "__main__":
     # Caso 1: Gap principal entre el grupo inferior (~13.8 THz) y superior (~15.0 THz)
     # f_split se ubica en el vacío espectral (14.4 THz)
     gap_val, k_c, f_low, f_up = find_theoretical_minigap(
-        k_expected=-1.035,
+        k_expected=0.4926,
         k_tolerance=0.04,
-        f_split=20.6,                  # Línea de división en el vacío del gap
-        f_search_range=(20.3, 21.0),
+        f_split=13.82,                  # Línea de división en el vacío del gap
+        f_search_range=(13.7,13.9),
         N_max=N_max_default,
         plot_bands=True
     )

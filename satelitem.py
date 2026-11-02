@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.special import jv
-
+factor = 1
 # --- 1. PARÁMETROS FÍSICOS ---
 norm = 0.05788 
 Jnn  = 46.812805 / norm
@@ -9,18 +9,18 @@ dJnn = 44.873295 / norm
 Jnnn = 2.60139 / norm
 D_xx = 0.76 / norm        # D (Hard Axis - Bare)
 K    = -45.4866 / norm
-D_yy = 0.76  / norm       # D_plane (In-Plane - Modulado)
+D_yy = 0.76 * factor  / norm       # D_plane (In-Plane - Modulado)
 S_mag = 1.0
 
 # --- PARÁMETROS DE GEOMETRÍA (Rigurosos del LLG) ---
 q_real = 5.2514862797
 gamma  = 1.286581         # CORREGIDO: Signo positivo del mínimo global
-alpha  = 0.002230 
-beta   = -0.004351 
+alpha  = 0.002250 * factor
+beta   = -0.00430 * factor
 
 # --- TRUNCAMIENTO FLOQUET ---
 N_max = 6
-APPLY_INTENSITY_THINNING = False
+APPLY_INTENSITY_THINNING = True
 
 # --- CONFIGURACIÓN CELDA c=2 ---
 c = 2
@@ -292,12 +292,13 @@ for k in q_vals:
 
                 k_m = k_phys + m_val * (2.0 * q_real)
 
-                if W_u > 1e-5:
+                threshold = 1e-6
+                if W_u > threshold:
                     k_plot.append(fold_k(k_m))
                     w_plot.append(w_thz) 
                     weights_plot.append(W_u)
 
-                if W_v > 1e-5:
+                if W_v > threshold:
                     k_plot.append(fold_k(k_m + q_real))
                     w_plot.append(w_thz) 
                     weights_plot.append(W_v)
@@ -313,7 +314,7 @@ weights_norm = weights_plot / np.max(weights_plot)
 
 # --- FILTRADO DE INTENSIDAD ---
 W_log10 = np.log10(weights_norm + 1e-15)
-LOG_FLOOR = -8
+LOG_FLOOR = -15
 log_floor_mask = W_log10 >= LOG_FLOOR
 if not np.any(log_floor_mask):
     log_floor_mask = np.ones_like(W_log10, dtype=bool)
@@ -348,7 +349,7 @@ scatter = plt.scatter(
 
 plt.xlabel(r'Wave Vector $k$ (Dimer BZ, $d=2a$) [$-\pi/2, \pi/2$]', fontsize=18)
 plt.ylabel(r'Frequency $\nu$ [THz]', fontsize=18)
-plt.title(r'$\mathrm{MoI}_3$ LSWT M/L Dispersion (LLG Validated)', fontsize=22, pad=15)
+plt.title(r'$\mathrm{MoI}_3$ LSWT M/L Dispersion ', fontsize=22, pad=15)
 plt.xticks(fontsize=16)
 plt.yticks(fontsize=16)
 

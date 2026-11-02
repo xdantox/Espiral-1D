@@ -7,12 +7,10 @@ N_SITES = 1198 # O el tamaño que desees analizar
 
 # Interruptores de ejecución (True/False)
 RUN_THETA_DEFORMATION = True
-RUN_DELTA_THETA_FFT = False
-RUN_Q_DIMERIZED = False
-RUN_ELLIPTICIDAD = False
-RUN_LISSAJOUS_YZ = False
-RUN_BASAL_AUTOPSY = False
-RUN_STAGGERED_ORDER = False
+RUN_THETA_K = False
+RUN_DELTA_THETA_FFT = True
+RUN_Q_DIMERIZED = True
+RUN_STAGGERED_ORDER = True
 RUN_HYBRID_TILT = True
 RUN_BLOCH_3D = True
 
@@ -35,7 +33,7 @@ IMPORTED_ANSATZ_PARAMS = {
 def cadena0spinhistory(n):
     # Asegúrate de que este archivo esté en la misma carpeta o ajusta la ruta
     try:
-        Spin_history = np.load('D_plane = 1.0D relax.npy', mmap_mode='r')
+        Spin_history = np.load('D_plane = 0.95D relaxXZ n = 1188.npy', mmap_mode='r')
     except FileNotFoundError:
         print("ERROR: No se encuentra el archivo .npy. Usando datos sintéticos para demo.")
         # Generar datos sintéticos si no hay archivo (SOLO PARA DEMOSTRACIÓN)
@@ -136,29 +134,19 @@ def plot_theta_deformation(spins, plane_indices=(1, 2), n_range=(0, 400), title_
     # ==========================================================================
     fig_theta, ax_theta = plt.subplots(1, 1, figsize=(11, 5))
 
-    ax_theta.plot(idx, theta_unwrapped, color="tab:blue", lw=1.5, label=r"$\theta_n$ (unwrapped)")
-    ax_theta.plot(
-        idx,
-        theta_model_harm_only,
-        color="black",
-        lw=1.5,
-        ls="--",
-        label=(
-            r"$\theta_n^{fit}=\theta_n^{(0)} + \alpha\sin(2qn+\phi_{2q}) + \beta(-1)^n\sin(2qn+\psi_{2q})$"
-            + f"\n$\\alpha$={alpha_ansatz:.5f}, $\\beta$={beta_ansatz:.5f}"
-        ),
-    )
-    ax_theta.set_ylabel(r"$\theta_n$ [rad]", fontsize=16)
+    qn_llg = q_llg_raw * idx
+    ax_theta.plot(idx, qn_llg, color="tab:blue", lw=1.5, label=r"$q_{\mathrm{LLG}} n$")
+    ax_theta.set_ylabel(r"$q_{\mathrm{LLG}} n$ [rad]", fontsize=16)
     ax_theta.set_xlabel("Site $n$", fontsize=16)
     
-    title_text = r"Spatial Phase $\theta_n$" + (f" - {title_suffix}" if title_suffix else "")
+    title_text = r"LLG Phase Contribution $q_{\mathrm{LLG}} n$" + (f" - {title_suffix}" if title_suffix else "")
     ax_theta.set_title(title_text, fontsize=18, fontweight='bold', pad=15)
     
     ax_theta.tick_params(axis='both', which='major', labelsize=14)
     ax_theta.grid(True, alpha=0.3)
     
     ax_theta.legend(fontsize=13, loc='upper right')
-    ax_theta.set_xlim(n_range)
+    ax_theta.set_xlim(0, n_sites - 1)
 
     plt.tight_layout()
     plt.show()
@@ -228,7 +216,7 @@ if RUN_THETA_DEFORMATION:
     q_fit_main, gamma_main, alpha_main, beta_main, phi2q_main, psi2q_main, theta_unwrap_main, dtheta_res_main = plot_theta_deformation(
         spins,
         plane_indices=(1, 2),
-        n_range=(0, 300),
+        n_range=(0, N_SITES - 1),
         title_suffix="Diagnóstico principal",
         ansatz_params=IMPORTED_ANSATZ_PARAMS,
     )
@@ -328,6 +316,89 @@ def estimate_Q_dimerized(spins, plane_indices=(1, 2)):
     
     return Q_slope, gamma_stagger, r_squared, theta_unwrapped, theta_pred
 
+
+if RUN_THETA_K:
+    # 1. Recuperamos la fase desenrollada y los índices
+    theta = theta_unwrap_main
+    N = len(theta)
+    idx = np.arange(N)
+    staggered = (-1.0) ** idx
+    
+    # 2. Calcular el q estrictamente cuantizado por las PBC
+    # El q físico de la caja (PBC) DEBE cumplir que q * N = 2 * pi * W
+    W = np.round(N * q_fit_main / (2 * np.pi))
+    q_pbc = 2 * np.pi * W / N
+    
+    # 3. Ajustar el resto del fondo (phi, gamma) manteniendo q_pbc FIJO
+    y_target = theta - q_pbc * idx
+    A_fixed = np.vstack([np.ones(N), staggered]).T
+    c_fixed, _, _, _ = np.linalg.lstsq(A_fixed, y_target, rcond=None)
+    phi_pbc, gamma_pbc = c_fixed
+    
+    # 4. Construir el nuevo residuo estrictamente periódico (PBC exacto)
+    dtheta_pbc = theta - (q_pbc * idx + phi_pbc + gamma_pbc * staggered)
+    
+    # 5. FFT Cruda del nuevo residuo PBC (¡El espectro físico real sin leakage!)
+    fft_raw_pbc = np.fft.fft(dtheta_pbc)
+    mag_pbc = np.abs(fft_raw_pbc) / N
+    
+    # Eje K
+    k_vals = np.fft.fftfreq(N) * 2 * np.pi
+    mask = (k_vals > 0) & (k_vals < np.pi)
+    k_plot = k_vals[mask]
+    
+    # ==========================================================================
+    # GRAFICACIÓN (Formato Publicación)
+    # ==========================================================================
+    fig, ax = plt.subplots(figsize=(11, 5))
+    
+    # Graficamos SOLO el espectro limpio con q estricto PBC (línea sólida)
+    ax.plot(k_plot, mag_pbc[mask], 
+            label=f"FFT of $\\delta\\theta_n$", 
+            color="tab:blue", lw=1.5, ls="-")
+    
+    # Ubicar teóricamente los picos
+    k_2q = (2 * q_pbc) % (2*np.pi)
+    k_2q_pi = (2 * q_pbc - np.pi) % (2*np.pi)
+    
+    # Plegamiento a la primera zona de Brillouin para graficar
+    if k_2q > np.pi: k_2q = 2*np.pi - k_2q
+    if k_2q_pi > np.pi: k_2q_pi = 2*np.pi - k_2q_pi
+    
+    ax.axvline(k_2q, color='tab:red', ls='--', alpha=0.8, 
+               label=r"$2q$ Harmonic (Folded $\approx$ {:.3f})".format(k_2q))
+    ax.axvline(k_2q_pi, color='tab:green', ls='--', alpha=0.8, 
+               label=r"$2q-\pi$ Interaction (Folded $\approx$ {:.3f})".format(k_2q_pi))
+    
+    ax.set_yscale("log")
+    ax.set_ylim(bottom=1e-10) # Limpiar el piso numérico base
+    ax.set_xlabel(r"$k$ [rad/site]", fontsize=14)
+    ax.set_ylabel(r"$|\delta\theta(k)|$", fontsize=14)
+    ax.set_title(r"FFT Spectrum of $\delta\theta_n$ (Harmonic Content)", fontsize=16, fontweight='bold', pad=15)
+    
+    ax.legend(fontsize=12, loc='upper right')
+    ax.grid(True, alpha=0.3, which="both")
+    
+    plt.tight_layout()
+    plt.show()
+    
+    # ==========================================================================
+    # AUTOPSIA NUMÉRICA
+    # ==========================================================================
+    print("\n" + "="*60)
+    print("COMPROBACIÓN DEL EFECTO DE CUANTIZACIÓN PBC")
+    print("="*60)
+    print(f"Número de espines (N)           : {N}")
+    print(f"Winding Number (W) estimado     : {W}")
+    print(f"q del ajuste (Least Squares)    : {q_fit_main:.8f} rad/site")
+    print(f"q estricto PBC (2*pi*W/N)       : {q_pbc:.8f} rad/site")
+    
+    dq = abs(q_fit_main - q_pbc)
+    print(f"Desviación microscópica (dq)    : {dq:.8e} rad/site")
+    print(f"Error de fase acumulado (dq * N): {dq * N:.8e} rad en las fronteras")
+    print("="*60)
+
+
 # ==============================================================================
 # INTEGRACIÓN EN TU SCRIPT
 # ==============================================================================
@@ -371,85 +442,6 @@ def analizar_elipticidad(spins):
     
     return ratio, excentricidad, fft_mag
 
-if RUN_ELLIPTICIDAD:
-    ratio, ecc, mag_z = analizar_elipticidad(spins)
-
-    print("\n" + "="*45)
-    print(f"DIAGNÓSTICO DE ELIPTICIDAD (D_plane)")
-    print("="*45)
-    print(f"Ratio de Amplitud (Ay/Az) : {ratio:.6f}")
-    print(f"Excentricidad de la elipse: {ecc:.6f}")
-    print(f"Estado: {'ELÍPTICO' if ratio < 0.98 else 'CIRCULAR'}")
-    print("-" * 45)
-    print(f"Interpretación: A menor ratio, mayor achatamiento")
-    print(f"hacia el eje fácil (Z) debido a D_plane.")
-    print("="*45)
-
-# ==============================================================================
-# 4. VISUALIZACIÓN DE LA TRAYECTORIA (Lissajous)
-# ==============================================================================
-if RUN_LISSAJOUS_YZ:
-    if not RUN_ELLIPTICIDAD:
-        ratio, _, _ = analizar_elipticidad(spins)
-    plt.figure(figsize=(6, 6))
-    plt.plot(spins[:200, 1], spins[:200, 2], 'o-', markersize=2, alpha=0.5, color='darkorange')
-    plt.title(f'Trayectoria del Espín (Plano YZ)\nRatio Ay/Az = {ratio:.3f}')
-    plt.xlabel('$S_y$ (Eje Difícil)')
-    plt.ylabel('$S_z$ (Eje Fácil)')
-    plt.axis('equal')
-    plt.grid(True, alpha=0.2)
-    plt.show()
-
-def caracterizar_estado_basal(spins):
-    """
-    Analiza el orden AFM, el Canting y la Magnetización Neta.
-    """
-    N = len(spins)
-    Sx, Sy, Sz = spins[:, 0], spins[:, 1], spins[:, 2]
-    
-    # 1. Magnetización Alternante (Staggered Magnetization)
-    # Si es un AFM perfecto, m_staggered ~ 1.0
-    staggered_z = Sz * ((-1)**np.arange(N))
-    m_staggered = np.abs(np.mean(staggered_z))
-    
-    # 2. Canting y Magnetización Neta
-    # El Canting suele aparecer en Sx si hay DMI o anisotropías cruzadas
-    m_net_x = np.mean(Sx)
-    m_net_y = np.mean(Sy)
-    m_net_z = np.mean(Sz)
-    
-    # 3. Análisis de la "Pureza" del Solitón
-    # Medimos qué tanto se desvía el orden alternante de ser constante
-    staggered_fluctuation = np.std(staggered_z)
-
-    return {
-        "m_staggered": m_staggered,
-        "m_net": [m_net_x, m_net_y, m_net_z],
-        "std_staggered": staggered_fluctuation
-    }
-
-# ==============================================================================
-# EJECUCIÓN DEL ANÁLISIS PROFUNDO
-# ==============================================================================
-if RUN_BASAL_AUTOPSY:
-    stats = caracterizar_estado_basal(spins)
-
-    print("\n" + "X"*45)
-    print(f"AUTOPSIA DEL ESTADO BASAL (SOLITÓN AFM)")
-    print("X"*45)
-    print(f"Orden AFM (Staggered Mz)    : {stats['m_staggered']:.6f}")
-    print(f"Fluctuación del Orden AFM   : {stats['std_staggered']:.6f}")
-    print(f"Magnetización Neta (Canting):")
-    print(f"   Mx (Out-of-plane): {stats['m_net'][0]:.6e}")
-    print(f"   My (In-plane H)  : {stats['m_net'][1]:.6e}")
-    print(f"   Mz (Easy Axis)   : {stats['m_net'][2]:.6e}")
-    print("-" * 45)
-
-    if stats['std_staggered'] > 0.05:
-        print("ESTADO: Red de Solitones Modulada (No es AFM puro)")
-    else:
-        print("ESTADO: AFM Colineal Anclado")
-    print("X"*45)
 
 def plot_staggered_order(spins, n_range=(0, 400)):
     """
@@ -520,7 +512,6 @@ if RUN_HYBRID_TILT:
     avg_tilt, max_tilt, frac_x = analizar_hybrid_tilt(spins)
 
     print("\n" + "Z"*45)
-    print(f"DIAGNÓSTICO DE TILT HÍBRIDO (Ruta de Escape X)")
     print("Z"*45)
     print(f"Magnitud media en X (|Sx|)    : {avg_tilt:.6f}")
     print(f"Tilt Máximo (Pico de Sx)     : {max_tilt:.6f}")
@@ -528,8 +519,6 @@ if RUN_HYBRID_TILT:
     print("-" * 45)
     if max_tilt > 0.1:
         print("CONCLUSIÓN: ¡HÍBRIDO DETECTADO!")
-        print("El espín se está inclinando hacia X para cruzar el ecuador.")
-        print("El Ansatz plano YZ ha colapsado.")
     else:
         print("CONCLUSIÓN: Rotación Plana YZ (Sin Tilt significativo)")
     print("Z"*45)

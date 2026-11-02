@@ -23,14 +23,14 @@ USE_RFFT_TIME = True
 Q_INCOMM_INPUT = 1.0332116073
 
 # Rango que abarca la banda inferior (~14 THz) y la superior (~15.5 THz)
-F_SEARCH_MIN_THZ = 13.0
-F_SEARCH_MAX_THZ = 15.0
+F_SEARCH_MIN_THZ = 14.15
+F_SEARCH_MAX_THZ = 14.55
 
 # ===================================================================
 # 1. CARGA DE DATOS Y REORGANIZACIÓN FÍSICA
 # ===================================================================
 print("Cargando datos en RAM...")
-archivo_datos = 'D_plane = 1.0D fluc.npy'
+archivo_datos = 'D_plane = 0.6D fluc.npy'
 Spin_history = np.load(archivo_datos)
 
 num_pasos = Spin_history.shape[0]
@@ -352,8 +352,8 @@ def find_true_umklapp_minigap(
 print("\nBuscando el minigap óptico...")
 
 # Rango k centrado en el vértice del anticruce
-k_target_expected = 0.54
-k_window = 0.07
+k_target_expected = 0.495
+k_window = 0.01
 k_search = (k_target_expected - k_window, k_target_expected + k_window)
 
 minigap_optico = find_true_umklapp_minigap(
@@ -362,7 +362,7 @@ minigap_optico = find_true_umklapp_minigap(
     freq_values=freq_values, 
     k_search_range=k_search,          
     f_search_range=(F_SEARCH_MIN_THZ, F_SEARCH_MAX_THZ),
-    f_split=20.7,         # Línea divisoria en la zona prohibida (entre 14.2 y 15.2 THz)
+    f_split=14.512,         # Línea divisoria en la zona prohibida (entre 14.2 y 15.2 THz)
     delta_k_plot=0.06,
     delta_f_plot=1.5,     # Ventana vertical suficiente para encuadrar ambas bandas
     plot_slice=True

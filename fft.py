@@ -63,7 +63,7 @@ def format_sci_tex(value, decimals=2):
 # 1. CONFIGURACIÓN Y CARGA DE DATOS
 # ===================================================================
 print("Cargando datos en RAM...")
-Spin_history = np.load('D_plane = 1.0D fluc.npy')
+Spin_history = np.load('D_plane = 2.2D flucYZ n = 1188 noise=0.04 seed1.npy')
 
 num_pasos = Spin_history.shape[0]
 n_spins = Spin_history.shape[1]

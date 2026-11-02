@@ -3,6 +3,27 @@ from Heff import H_eff_p_vectorized_PBC_folded,H_eff_p_vectorized_PBC,H_eff_p_ve
 from rot import omega
 
 
+def implicit_midpoint_step(c_old, dt, field, alpha=0.0, precession_enabled=True, n_iter=14):
+    """Apply an implicit midpoint step to the LLG vector field."""
+    def rhs(spins):
+        effective_field = field(spins)
+        if not precession_enabled:
+            return -(effective_field - (spins * effective_field).sum(1, keepdims=True) * spins)
+        torque = np.cross(spins, effective_field)
+        return -torque + alpha * np.cross(spins, torque)
+
+    c_new = c_old + dt * rhs(c_old)
+    c_new /= np.linalg.norm(c_new, axis=1)[:, None]
+
+    for _ in range(n_iter):
+        c_mid = 0.5 * (c_old + c_new)
+        c_mid /= np.linalg.norm(c_mid, axis=1)[:, None]
+        c_new = c_old + dt * rhs(c_mid)
+        c_new /= np.linalg.norm(c_new, axis=1)[:, None]
+
+    return c_new
+
+
 
 def implicit_midpoint_step_vectorized_PBC(c_old, dt, n_iter=14):
     """

@@ -36,10 +36,10 @@ Ve = np.array([
     J_perp/ muB_meV_T  
 ])
 dt = 1e-15 # Paso de tiempo (s)
-total_time = (2**17) * dt  # Tiempo total de simulación (s)
+total_time = (30000) * dt  # Tiempo total de simulación (s)
 num_pasos = int(total_time / dt)  # Número total de pasos de tiempo
 a1, a2 = 1.5 , 1  # Distancias alternantes
-n = 1198   # Número de espines en la cadena
+n = 1188   # Número de espines en la cadena
 
 
 def H_eff_p_vectorized_PBC(cadena):
@@ -230,7 +230,7 @@ def H_eff_pbc_numba_in(cadena, J_pair_left, J_pair_right, J_nnn, D_aniso, K_biq)
         # --- ASIGNACIÓN FINAL (Segura para empty_like) ---
         # Anisotropía en X (S_i[0]) e Y (S_i[1])
         H_total[i, 0] = nn0 + nnn0 + D_aniso * S_i[0] + biq0
-        H_total[i, 1] = nn1 + nnn1 +  0.9*D_aniso * S_i[1] + biq1
+        H_total[i, 1] = nn1 + nnn1 + 1.65 * D_aniso * S_i[1] + biq1
         H_total[i, 2] = nn2 + nnn2 + biq2
 
     return H_total

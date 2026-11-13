@@ -105,12 +105,15 @@ ax1.scatter(
     label=r"LSWT ($m=2$, $k \approx 0.4928$\,rad)",
 )
 
-ax1.set_ylabel(r"Minigap $\Delta\nu^{(2)}$ [THz]")
+ax1.set_ylabel(r"Minigap $\Delta\nu^{(2)}$ [THz]", fontsize=18)
+ax1.tick_params(axis="y", labelsize=15)
 ax1.set_ylim(-0.003, 0.070)
-ax1.legend(loc="upper left", frameon=True, framealpha=0.9)
+ax1.legend(loc="upper left", frameon=True, framealpha=0.9, fontsize=15)
 ax1.grid(True, linestyle=":", alpha=0.6)
 ax1.set_title(
-    r"Secondary Umklapp Minigap Scaling vs. $D_{\mathrm{plane}}/D$", pad=10
+    r"Secondary Umklapp Minigap Scaling vs. $D_{\mathrm{plane}}/D$",
+    fontsize=21,
+    pad=10,
 )
 
 # --- Panel 2: Residuos (LSWT - Fit) en GHz ---
@@ -126,8 +129,10 @@ ax2.plot(
 )
 
 ax2.set_xlabel(r"Transverse Anisotropy Ratio $x = D_{\mathrm{plane}}/D$")
-ax2.set_ylabel(r"Res. [GHz]")
+ax2.set_ylabel(r"Res. [GHz]", fontsize=18)
+ax2.tick_params(axis="y", labelsize=15)
 ax2.set_xlim(0.05, 1.05)
 ax2.grid(True, linestyle=":", alpha=0.6)
+ax2.legend(loc="upper left", frameon=True, framealpha=0.9, fontsize=15)
 
 plt.show()

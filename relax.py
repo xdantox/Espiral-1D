@@ -3,16 +3,16 @@ import matplotlib.pyplot as plt
 from typing import cast
 from mpl_toolkits.mplot3d import Axes3D
 # Configuración
-N_SITES = 1198 # O el tamaño que desees analizar
+N_SITES = 1188 # O el tamaño que desees analizar
 
 # Interruptores de ejecución (True/False)
 RUN_THETA_DEFORMATION = True
-RUN_THETA_K = False
-RUN_DELTA_THETA_FFT = True
-RUN_Q_DIMERIZED = True
-RUN_STAGGERED_ORDER = True
-RUN_HYBRID_TILT = True
-RUN_BLOCH_3D = True
+RUN_THETA_K = True
+RUN_DELTA_THETA_FFT = False
+RUN_Q_DIMERIZED = False
+RUN_STAGGERED_ORDER = False
+RUN_HYBRID_TILT = False
+RUN_BLOCH_3D = False
 
 # Comparación opcional con alpha del minimizador de direct3_PBC.
 # Reemplaza estos valores con los que importes de direct3_PBC.
@@ -33,7 +33,7 @@ IMPORTED_ANSATZ_PARAMS = {
 def cadena0spinhistory(n):
     # Asegúrate de que este archivo esté en la misma carpeta o ajusta la ruta
     try:
-        Spin_history = np.load('D_plane = 0.95D relaxXZ n = 1188.npy', mmap_mode='r')
+        Spin_history = np.load('D_plane = D relaxYZ n = 1188.npy', mmap_mode='r')
     except FileNotFoundError:
         print("ERROR: No se encuentra el archivo .npy. Usando datos sintéticos para demo.")
         # Generar datos sintéticos si no hay archivo (SOLO PARA DEMOSTRACIÓN)
@@ -136,16 +136,16 @@ def plot_theta_deformation(spins, plane_indices=(1, 2), n_range=(0, 400), title_
 
     qn_llg = q_llg_raw * idx
     ax_theta.plot(idx, qn_llg, color="tab:blue", lw=1.5, label=r"$q_{\mathrm{LLG}} n$")
-    ax_theta.set_ylabel(r"$q_{\mathrm{LLG}} n$ [rad]", fontsize=16)
-    ax_theta.set_xlabel("Site $n$", fontsize=16)
+    ax_theta.set_ylabel(r"$q_{\mathrm{LLG}} n$ [rad]", fontsize=18)
+    ax_theta.set_xlabel("Site $n$", fontsize=18)
     
     title_text = r"LLG Phase Contribution $q_{\mathrm{LLG}} n$" + (f" - {title_suffix}" if title_suffix else "")
-    ax_theta.set_title(title_text, fontsize=18, fontweight='bold', pad=15)
+    ax_theta.set_title(title_text, fontsize=21, fontweight='bold', pad=15)
     
-    ax_theta.tick_params(axis='both', which='major', labelsize=14)
+    ax_theta.tick_params(axis='both', which='major', labelsize=15)
     ax_theta.grid(True, alpha=0.3)
     
-    ax_theta.legend(fontsize=13, loc='upper right')
+    ax_theta.legend(fontsize=15, loc='upper right')
     ax_theta.set_xlim(0, n_sites - 1)
 
     plt.tight_layout()
@@ -172,13 +172,13 @@ def plot_theta_deformation(spins, plane_indices=(1, 2), n_range=(0, 400), title_
         ),
     )
     ax_res_top.axhline(0.0, color="black", ls="--", lw=1.0, alpha=0.5)
-    ax_res_top.set_ylabel(r"$\delta\theta_n$ [rad]", fontsize=16)
-    ax_res_top.tick_params(axis='y', labelsize=14)
+    ax_res_top.set_ylabel(r"$\delta\theta_n$ [rad]", fontsize=18)
+    ax_res_top.tick_params(axis='y', labelsize=15)
     ax_res_top.grid(True, alpha=0.3)
     
     ymin, ymax = ax_res_top.get_ylim()
     ax_res_top.set_ylim(ymin, ymax + (ymax - ymin) * 0.45) 
-    ax_res_top.legend(fontsize=13, loc='upper right')
+    ax_res_top.legend(fontsize=15, loc='upper right')
 
     ax_res_bottom.plot(
         idx,
@@ -192,17 +192,17 @@ def plot_theta_deformation(spins, plane_indices=(1, 2), n_range=(0, 400), title_
         ),
     )
     ax_res_bottom.axhline(0.0, color="black", ls="--", lw=1.0, alpha=0.5)
-    ax_res_bottom.set_ylabel(r"$\delta\theta_n$ [rad]", fontsize=16)
-    ax_res_bottom.set_xlabel("Site $n$", fontsize=16)
-    ax_res_bottom.tick_params(axis='both', which='major', labelsize=14)
+    ax_res_bottom.set_ylabel(r"$\delta\theta_n$ [rad]", fontsize=18)
+    ax_res_bottom.set_xlabel("Site $n$", fontsize=18)
+    ax_res_bottom.tick_params(axis='both', which='major', labelsize=15)
     ax_res_bottom.grid(True, alpha=0.3)
     
     ymin, ymax = ax_res_bottom.get_ylim()
     ax_res_bottom.set_ylim(ymin, ymax + (ymax - ymin) * 0.45) 
-    ax_res_bottom.legend(fontsize=13, loc='upper right')
+    ax_res_bottom.legend(fontsize=15, loc='upper right')
     ax_res_bottom.set_xlim(n_range)
 
-    fig_res.suptitle(r"Phase Residual: Numerical (LLG) vs Analytical (Ansatz) Comparison", fontsize=18, fontweight='bold')
+    fig_res.suptitle(r"Phase Residual: Numerical (LLG) vs Analytical (Ansatz) Comparison", fontsize=21, fontweight='bold')
     plt.tight_layout()
     fig_res.subplots_adjust(top=0.92) 
     plt.show()
@@ -373,10 +373,11 @@ if RUN_THETA_K:
     ax.set_yscale("log")
     ax.set_ylim(bottom=1e-10) # Limpiar el piso numérico base
     ax.set_xlabel(r"$k$ [rad/site]", fontsize=14)
-    ax.set_ylabel(r"$|\delta\theta(k)|$", fontsize=14)
-    ax.set_title(r"FFT Spectrum of $\delta\theta_n$ (Harmonic Content)", fontsize=16, fontweight='bold', pad=15)
+    ax.set_ylabel(r"$|\delta\theta(k)|$", fontsize=18)
+    ax.tick_params(axis='y', labelsize=15)
+    ax.set_title(r"FFT Spectrum of $\delta\theta_n$ (Harmonic Content)", fontsize=21, fontweight='bold', pad=15)
     
-    ax.legend(fontsize=12, loc='upper right')
+    ax.legend(fontsize=15, loc='upper right')
     ax.grid(True, alpha=0.3, which="both")
     
     plt.tight_layout()

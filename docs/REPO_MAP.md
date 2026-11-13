@@ -1,50 +1,49 @@
-# Mapa del repositorio: Espiral-1D
+# Mapa del repositorio — Espiral-1D
 
-## Núcleo del modelo
+La raíz contiene prototipos y herramientas de varias etapas de investigación. Los nombres se describen según el código consultado; verifica cada script y sus datos de entrada antes de ejecutarlo. No hay un único punto de entrada que ejecute todos los análisis.
 
-- `Heff.py`: define los acoples, parámetros físicos y el Hamiltoniano efectivo.
-- `E.py`: calcula energetías y observables del sistema.
-- `chain.py`: orquesta la dinámica y la integración del modelo.
-- `cadena0.py`: construye estados iniciales para la cadena.
+## Modelo y dinámica
 
-## Diagnóstico y análisis
+- `Heff.py`: parámetros y rutinas para calcular el campo efectivo.
+- `E.py`: cálculo de energía.
+- `dot.py`: operaciones auxiliares de producto escalar/cálculo vectorizado.
+- `chain.py`: orquestación de una simulación de cadena (comprueba primero las rutas de entrada).
+- `rot.py`, `rot_methods.py`: rutinas de evolución/integración.
+- `B_ext.py`: campo externo.
+- `cadena0.py`, `1spin.py`, `rand.py`: estados iniciales y utilidades de espines.
 
-- `relax.py`: análisis de relajación, fase, dimerización y deformación.
-- `fft.py`: espectro en frecuencia y vector de onda como función del tiempo.
-- `transmision.py`: medición de transmisión y atenuación de magnones.
-- `check.py`: validación rápida del estado final.
-- `history.py`: análisis temporal de la historia de la simulación.
-- `fitq.py`: ajuste de q y parámetros de fondo.
-- `plot_*.py`: visualizaciones específicas.
-- `fig*.py`: figuras y diagnósticos puntuales.
+## Estados, ansatz y optimización
 
-## Optimización y ansatz
+- `direct3.py`, `direct3_PBC.py`, `direct3_PBC_folded.py`: variantes de construcción/ajuste de estados con condiciones de contorno y ansatz.
+- `JDS.py`, `Jdiscreta.py`, `Jmodified.py`: variantes de modelo/acoplamiento.
+- `alpha.py`, `alpha2.py`, `m2.py`: cálculos auxiliares/modelos; revisar su contexto antes de interpretarlos como parte del modelo de espines.
 
-- `direct3.py`
-- `direct3_PBC.py`
-- `direct3_PBC_folded.py`
-- `Jmodified.py`
-- `JDS.py`
-- `Jdiscreta.py`
+## Análisis de estados e historias
 
-Estos scripts suelen servir para construir estados iniciales, parametrizarlos y ajustar el ansatz.
+- `relax.py`, `relax3D.py`, `relax3Dexact.py`: relajación y análisis de estados.
+- `history.py`: análisis de una secuencia temporal guardada.
+- `check.py`, `fitq.py`, `perfil_banda.py`, `plot_ansatz_theta.py`, `plot_q_local.py`: comprobaciones y análisis específicos.
+- `stab_termica.py`, `flop.py`, `flopproxy.py`: protocolos de estabilidad térmica y transición.
 
-## Visualización y resultados
+## Espectros, transporte y visualización
 
-- `animation.py`
-- `gif.py`
-- `soliton_transition.gif`
-- `*.png`, `*.pdf`: figuras generadas por las simulaciones.
+- `fft.py`, `fftBEoptimized.py`: análisis FFT.
+- `transmision.py`: análisis de transmisión de magnones.
+- `animation.py`, `gif.py`: animaciones.
+- `fig.py`, `gap.py`, `gaps.py`, `gapteorico.py`, `satelite.py`, `satelite2.py`, `satelitem.py`: figuras y análisis puntuales.
 
-## Recomendación de uso
+## Datos y figuras
 
-Cuando se quiere revisar el proyecto por primera vez, conviene seguir este orden:
+- Los archivos `.npy` son datos/historias de simulación y pueden ocupar mucho espacio.
+- Los `.png`, `.pdf` y `.gif` son resultados visuales.
+- `helix_spin_chain.html` y `html.html` son recursos HTML.
 
-1. `Heff.py`
-2. `cadena0.py`
-3. `chain.py`
-4. `relax.py`
-5. `fft.py`
-6. `transmision.py`
+## Orden recomendado para una primera lectura
 
-Este orden permite comprender primero el modelo, luego el estado inicial, la dinámica, y finalmente los observables físicos.
+1. `Heff.py` y `E.py` para las convenciones del modelo.
+2. `cadena0.py` para entender cómo se construyen ciertos estados iniciales.
+3. `chain.py` y las rutinas de `rot*.py` para la dinámica.
+4. `relax3D.py`/`relax.py` para diagnóstico.
+5. `fft.py` y `transmision.py` para observables.
+
+Este orden es orientativo: algunos scripts son independientes, experimentales o requieren archivos locales que no están disponibles para una instalación limpia.

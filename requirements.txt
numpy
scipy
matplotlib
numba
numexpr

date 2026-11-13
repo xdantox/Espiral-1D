@@ -1,0 +1,106 @@
+# Espiral-1D
+
+Repositorio de simulaciones y análisis de una cadena espiral/AFM unidimensional con modulación, acoplamiento de espín y análisis de espectros, transmisión y estabilidad.
+
+## Objetivo
+
+Este proyecto explora estados espirales, solitones, fase de vórtice / estructura de banda, y observables como:
+
+- perfiles reales en espacio
+- espectros en k y frecuencia
+- energía y estabilidad térmica
+- transmisión / bloqueo de magnones
+- comparación entre configuraciones con distintas anisotropías y perfiles de relajación
+
+## Estructura principal
+
+- `Heff.py`: modelo efectivo y parámetros del Hamiltoniano.
+- `E.py`: cálculo de energía del sistema.
+- `relax.py`: análisis de relajación y diagnóstico de la fase espiral.
+- `transmision.py`: análisis de transmisión de magnones.
+- `fft.py`: cálculo espectral y visualización en frecuencia.
+- `direct3_PBC.py`: ansatz modulado con PBC y optimización.
+- `direct3_PBC_folded.py`: variante del ansatz con folded geometry.
+- `chain.py`: evolución dinámica de una cadena.
+- `cadena0.py`: construcción de estados iniciales.
+- `animation.py`: animaciones.
+- `fig*.py`, `plot*.py`, `gap*.py`, etc.: diagnósticos y figuras específicas.
+
+## Requisitos
+
+Se recomienda usar un entorno con Python 3.10+.
+
+Instalación:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+## Dependencias
+
+- numpy
+- scipy
+- matplotlib
+- numba
+- numexpr
+
+Si no querés instalar todo de una vez, el mínimo típico es:
+
+```bash
+pip install numpy scipy matplotlib numba numexpr
+```
+
+## Cómo correr lo más importante
+
+### 1) Diagnosticar un estado relajado
+
+```bash
+python relax.py
+```
+
+### 2) Ver el espectro
+
+```bash
+python fft.py
+```
+
+### 3) Analizar transmisión
+
+```bash
+python transmision.py
+```
+
+### 4) Ejecutar la dinámica
+
+```bash
+python chain.py
+```
+
+## Archivos de salida
+
+El repositorio incluye varios archivos `.npy`, `.png`, `.pdf` y `.gif` que representan resultados intermedios o figuras generadas por las simulaciones. Se aconseja mantenerlos en la raíz solo mientras se está desarrollando y moverlos a una carpeta `results/` si se quiere un repo más limpio.
+
+## Buenas prácticas para revisión
+
+- Preferir correr el script que corresponde a cada análisis en lugar de ejecutar todos.
+- Mantener `*.npy` fuera del flujo de revisión si se quiere un repositorio ligero.
+- Añadir comentarios o un pequeño análisis en cada script importante antes de reutilizarlo.
+
+## Nota
+
+Este repositorio es un laboratorio experimental: hay scripts de diagnóstico, análisis, visualización y prototipos. Algunos archivos son más “de trabajo” que “de presentación”. La idea principal es que cada script tenga un propósito claro y pueda identificarse rápidamente desde este README.
+
+## Archivos relevantes
+
+- `Heff.py`
+- `E.py`
+- `relax.py`
+- `fft.py`
+- `transmision.py`
+- `direct3_PBC.py`
+- `chain.py`
+- `cadena0.py`
+
+Para una guía más detallada del mapa del repositorio, ver `docs/REPO_MAP.md`.

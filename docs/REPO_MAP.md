@@ -1,49 +1,49 @@
-# Mapa del repositorio — Espiral-1D
+# Repository map — Espiral-1D
 
-La raíz contiene prototipos y herramientas de varias etapas de investigación. Los nombres se describen según el código consultado; verifica cada script y sus datos de entrada antes de ejecutarlo. No hay un único punto de entrada que ejecute todos los análisis.
+The repository root contains prototypes and tools from different stages of research. The descriptions below are based on the code inspected; check each script and its inputs before running it. There is no single entry point that runs every analysis.
 
-## Modelo y dinámica
+## Model and dynamics
 
-- `Heff.py`: parámetros y rutinas para calcular el campo efectivo.
-- `E.py`: cálculo de energía.
-- `dot.py`: operaciones auxiliares de producto escalar/cálculo vectorizado.
-- `chain.py`: orquestación de una simulación de cadena (comprueba primero las rutas de entrada).
-- `rot.py`, `rot_methods.py`: rutinas de evolución/integración.
-- `B_ext.py`: campo externo.
-- `cadena0.py`, `1spin.py`, `rand.py`: estados iniciales y utilidades de espines.
+- `Heff.py`: parameters and routines for calculating the effective field.
+- `E.py`: energy calculation.
+- `dot.py`: helper operations for dot products and vectorized calculations.
+- `chain.py`: orchestration of a chain simulation; check input paths first.
+- `rot.py`, `rot_methods.py`: evolution and integration routines.
+- `B_ext.py`: external magnetic field.
+- `cadena0.py`, `1spin.py`, `rand.py`: initial states and spin utilities.
 
-## Estados, ansatz y optimización
+## States, ansatz, and optimization
 
-- `direct3.py`, `direct3_PBC.py`, `direct3_PBC_folded.py`: variantes de construcción/ajuste de estados con condiciones de contorno y ansatz.
-- `JDS.py`, `Jdiscreta.py`, `Jmodified.py`: variantes de modelo/acoplamiento.
-- `alpha.py`, `alpha2.py`, `m2.py`: cálculos auxiliares/modelos; revisar su contexto antes de interpretarlos como parte del modelo de espines.
+- `direct3.py`, `direct3_PBC.py`, `direct3_PBC_folded.py`: variants for constructing/fitting states with boundary conditions and ansatz functions.
+- `JDS.py`, `Jdiscreta.py`, `Jmodified.py`: model/coupling variants.
+- `alpha.py`, `alpha2.py`, `m2.py`: auxiliary calculations/models; review their context before treating them as part of the spin model.
 
-## Análisis de estados e historias
+## State and history analysis
 
-- `relax.py`, `relax3D.py`, `relax3Dexact.py`: relajación y análisis de estados.
-- `history.py`: análisis de una secuencia temporal guardada.
-- `check.py`, `fitq.py`, `perfil_banda.py`, `plot_ansatz_theta.py`, `plot_q_local.py`: comprobaciones y análisis específicos.
-- `stab_termica.py`, `flop.py`, `flopproxy.py`: protocolos de estabilidad térmica y transición.
+- `relax.py`, `relax3D.py`, `relax3Dexact.py`: relaxation and state analysis.
+- `history.py`: analysis of a saved time sequence.
+- `check.py`, `fitq.py`, `perfil_banda.py`, `plot_ansatz_theta.py`, `plot_q_local.py`: checks and specialized analyses.
+- `stab_termica.py`, `flop.py`, `flopproxy.py`: thermal-stability and transition protocols.
 
-## Espectros, transporte y visualización
+## Spectra, transport, and visualization
 
-- `fft.py`, `fftBEoptimized.py`: análisis FFT.
-- `transmision.py`: análisis de transmisión de magnones.
-- `animation.py`, `gif.py`: animaciones.
-- `fig.py`, `gap.py`, `gaps.py`, `gapteorico.py`, `satelite.py`, `satelite2.py`, `satelitem.py`: figuras y análisis puntuales.
+- `fft.py`, `fftBEoptimized.py`: FFT analysis.
+- `transmision.py`: magnon transmission analysis.
+- `animation.py`, `gif.py`: animations.
+- `fig.py`, `gap.py`, `gaps.py`, `gapteorico.py`, `satelite.py`, `satelite2.py`, `satelitem.py`: figures and specialized analyses.
 
-## Datos y figuras
+## Data and figures
 
-- Los archivos `.npy` son datos/historias de simulación y pueden ocupar mucho espacio.
-- Los `.png`, `.pdf` y `.gif` son resultados visuales.
-- `helix_spin_chain.html` y `html.html` son recursos HTML.
+- `.npy` files are simulation data/histories and may be large.
+- `.png`, `.pdf`, and `.gif` files are visual results.
+- `helix_spin_chain.html` and `html.html` are HTML resources.
 
-## Orden recomendado para una primera lectura
+## Suggested reading order
 
-1. `Heff.py` y `E.py` para las convenciones del modelo.
-2. `cadena0.py` para entender cómo se construyen ciertos estados iniciales.
-3. `chain.py` y las rutinas de `rot*.py` para la dinámica.
-4. `relax3D.py`/`relax.py` para diagnóstico.
-5. `fft.py` y `transmision.py` para observables.
+1. `Heff.py` and `E.py` for the model conventions.
+2. `cadena0.py` to see how some initial states are constructed.
+3. `chain.py` and the `rot*.py` routines for the dynamics.
+4. `relax3D.py` / `relax.py` for diagnostics.
+5. `fft.py` and `transmision.py` for observables.
 
-Este orden es orientativo: algunos scripts son independientes, experimentales o requieren archivos locales que no están disponibles para una instalación limpia.
+This order is only a guide: some scripts are independent, experimental, or require local files that are not available in a clean checkout.

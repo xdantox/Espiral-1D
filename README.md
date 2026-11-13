@@ -1,17 +1,17 @@
 # Espiral-1D
 
-Simulaciones y análisis numérico de cadenas magnéticas unidimensionales: espirales de espín, estados antiferromagnéticos, solitones y transporte de magnones.
+Numerical simulations and analysis of one-dimensional magnetic chains, focusing on spin spirals, antiferromagnetic states, solitons, and magnon transport.
 
-> **Estado del repositorio:** investigación en desarrollo. La raíz contiene scripts de distintas etapas y datos/resultados auxiliares; no todos los scripts son una canalización única ni se han validado para ejecutarse sin los datos locales correspondientes.
+> **Repository status:** Research in progress. The root contains scripts from different stages of development, along with auxiliary data and results. The scripts do not form a single end-to-end pipeline, and some require local input files that are not included in the repository.
 
-## Qué contiene
+## Overview
 
-El código explora la dinámica de espines y el análisis de estados modulados, incluyendo ajuste de ansatz, espectros en espacio y frecuencia, estabilidad térmica y transmisión de excitaciones.
+This project explores spin dynamics and modulated states, including ansatz fitting, spatial and frequency spectra, thermal stability, and excitation transmission.
 
-## Para empezar
+## Getting started
 
-1. Revisa el [mapa de archivos](docs/REPO_MAP.md) para identificar los módulos y el orden de lectura.
-2. Usa Python 3.10 o posterior e instala las dependencias:
+1. Read the [repository map](docs/REPO_MAP.md) to identify the main modules and a suggested reading order.
+2. Use Python 3.10 or later and install the dependencies:
 
    ```bash
    python -m venv .venv
@@ -19,33 +19,33 @@ El código explora la dinámica de espines y el análisis de estados modulados, 
    python -m pip install -r requirements.txt
    ```
 
-3. Antes de ejecutar un análisis, comprueba los nombres/rutas de datos que espera el script. Varios programas cargan historias `.npy` específicas que no están incluidas en el repositorio. Los análisis que importan `relax3D.py` requieren ese módulo y, según el caso, sus datos de entrada.
+3. Before running an analysis, check which input files and paths the script expects. Several scripts load specific `.npy` histories that are not included in the repository. Scripts importing `relax3D.py` also require that module and, in some cases, its input data.
 
-No se recomienda lanzar `chain.py`, `stab_termica.py` u otros cálculos largos sin revisar primero sus parámetros, tamaño de salida y requisitos de datos.
+Do not run `chain.py`, `stab_termica.py`, or other long calculations without first checking their parameters, expected output size, and data requirements.
 
-## Módulos orientativos
+## Modules at a glance
 
-- `Heff.py`, `E.py`, `dot.py`: campo efectivo, energía y operaciones del modelo.
-- `chain.py`, `rot.py`, `rot_methods.py`: dinámica e integradores.
-- `cadena0.py`, `direct3*.py`: construcción/optimización de estados y ansatz.
-- `relax.py`, `relax3D.py`, `history.py`: diagnósticos de estados e historias.
-- `fft.py`, `fftBEoptimized.py`, `transmision.py`: análisis espectral y transporte.
-- `stab_termica.py`, `flopproxy.py`: pruebas de estabilidad/ruido y protocolos relacionados.
-- `plot_*.py`, `fig*.py`, `gap*.py`, `satelite*.py`: análisis y visualizaciones específicas.
+- `Heff.py`, `E.py`, `dot.py`: effective field, energy, and model operations.
+- `chain.py`, `rot.py`, `rot_methods.py`: dynamics and integration routines.
+- `cadena0.py`, `direct3*.py`: initial-state construction and ansatz optimization.
+- `relax.py`, `relax3D.py`, `history.py`: state and time-history diagnostics.
+- `fft.py`, `fftBEoptimized.py`, `transmision.py`: spectral and transport analyses.
+- `stab_termica.py`, `flopproxy.py`: thermal/noise stability tests and related workflows.
+- `plot_*.py`, `fig*.py`, `gap*.py`, `satelite*.py`: specialized analyses and visualizations.
 
-La lista no es exhaustiva; consulta [docs/REPO_MAP.md](docs/REPO_MAP.md) antes de elegir un script.
+This list is not exhaustive; consult [docs/REPO_MAP.md](docs/REPO_MAP.md) before choosing a script.
 
-## Datos y resultados
+## Data and results
 
-Las historias de simulación pueden ser grandes y suelen guardarse como `.npy`. El `.gitignore` excluye formatos binarios comunes para evitar subir resultados pesados accidentalmente. Los archivos ya versionados permanecen en el repositorio; no se borran ni se mueven automáticamente.
+Simulation histories can be large and are often stored as `.npy` files. The `.gitignore` excludes common binary data formats to help avoid accidentally committing large outputs. Files already tracked in the repository are not removed or relocated automatically.
 
-## Reproducibilidad y límites actuales
+## Reproducibility and current limitations
 
-- Algunos scripts usan rutas de datos escritas directamente en el código; adapta esas rutas a tus archivos locales.
-- Fija y registra las semillas aleatorias al comparar corridas. No todos los scripts están parametrizados para recibirlas desde la línea de comandos.
-- Las salidas pueden depender del tamaño de sistema, parámetros físicos, bibliotecas y hardware. Registra esos valores junto con cada figura o historia.
-- No se declara una licencia de uso en este README; consulta al autor antes de reutilizar el código si no hay una licencia publicada.
+- Some scripts define input paths directly in the source; update them to match your local data files.
+- Set and record random seeds when comparing runs. Not all scripts accept seeds through command-line arguments.
+- Results may depend on system size, physical parameters, library versions, and hardware. Record these settings alongside each figure or history.
+- This README does not declare a license. If no license is published, contact the author before reusing the code.
 
-## Documentación
+## Documentation
 
-- [Mapa del repositorio y dependencias entre scripts](docs/REPO_MAP.md)
+- [Repository map and script relationships](docs/REPO_MAP.md)
